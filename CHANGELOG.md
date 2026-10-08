@@ -6,8 +6,13 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ## [Sin publicar]
 
+### Añadido
+- **Arranque automático del backend**: tarea programada `tunedrop-backend` (al iniciar sesión, sin administrador) con un supervisor sin ventana que reinicia la API y el worker si se caen, evita instancias duplicadas, limpia procesos huérfanos al arrancar y guarda logs con rotación en `backend/data/logs`.
+- `scripts/install-tunnel-service.ps1`: instala `cloudflared` como servicio de Windows con inicio automático (requiere administrador).
+- `scripts/status.ps1` (estado de tarea, procesos, API, túnel y acceso público) y `scripts/stop-backend.ps1` (detención completa).
+
 ### Pendiente
-- Convertir `cloudflared` y el backend en servicios que arranquen con Windows.
+- Instalar el servicio del túnel (`install-tunnel-service.ps1`) con permisos de administrador y desactivar la suspensión del PC.
 - Límite de peticiones por IP, Cloudflare Turnstile, tope de cola y cuota de disco (ver `docs/security.md`).
 - Procesar varias canciones de una playlist a la vez (hoy son unos 19 s por canción).
 - Probar un álbum de Spotify de varias canciones y limpiar artista y título de videos subidos por canales (p. ej. «… Official YouTube», «(Music Video)»).

@@ -135,6 +135,16 @@ cd frontend; npm run build        # genera frontend\dist
 cd ..\backend; npm run start:api  # y, en otra terminal, npm run start:worker
 ```
 
+### Que arranque solo (Windows)
+
+```powershell
+.\scripts\install-autostart.ps1 -StartNow      # backend: tarea programada con supervisor que lo reinicia si se cae
+.\scripts\install-tunnel-service.ps1           # túnel de Cloudflare como servicio (PowerShell como administrador)
+.\scripts\status.ps1                           # ver de un vistazo si todo está funcionando
+```
+
+Más detalle (y cómo detenerlo) en [`docs/deployment-cloudflare.md`](docs/deployment-cloudflare.md).
+
 <details>
 <summary><b>⚙️ Variables de entorno (<code>backend/.env</code>)</b></summary>
 
@@ -172,7 +182,7 @@ Music_Downloader/
 │       └── resolvers/       youtube · spotify · match (emparejar) · tagger (etiquetas)
 ├── frontend/                React + Vite + Tailwind
 ├── docs/                    Arquitectura, despliegue, seguridad y fases
-└── scripts/                 Scripts de PowerShell para Windows
+└── scripts/                 PowerShell: arranque, supervisor, estado, instalación de servicios
 ```
 
 ---
@@ -216,7 +226,7 @@ Estado y checklist previa al lanzamiento público: [`docs/security.md`](docs/sec
 | **1** | YouTube: canción y playlist → archivo o ZIP, interfaz web | ✅ |
 | **2** | Spotify (canciones y álbumes), etiquetas y portada, seguridad base | ✅ |
 | **3** | Despliegue privado: Cloudflare Tunnel + Access en `tunedrop.wilrd14.dev` | ✅ |
-| **4** | Servicios que arranquen con Windows · límites por IP · Turnstile | 🚧 |
+| **4** | Arranque automático ✅ · límites por IP · Turnstile 🚧 | 🚧 |
 | **5** | Apertura pública: decisión legal, host siempre encendido, monitoreo | ⏳ |
 
 Detalle en [`docs/phases.md`](docs/phases.md) · Historial en [`CHANGELOG.md`](CHANGELOG.md).

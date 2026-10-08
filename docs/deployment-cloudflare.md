@@ -76,11 +76,42 @@ Panel de Cloudflare → **Zero Trust → Access controls → Applications → Cr
 
 Etiquetas exactas del panel pueden variar. La primera vez puede pedirte crear la cuenta de Zero Trust (el plan gratuito basta).
 
-## 7. Que no se caiga al reiniciar el PC
+## 7. Arranque automático (que no dependa de que lo lances a mano)
 
-- **cloudflared como servicio de Windows** (CMD como administrador): coloca `cloudflared.exe` en `C:\Cloudflared\bin`, ejecuta `cloudflared.exe service install`, copia `cert.pem`, `<UUID>.json` y `config.yml` a `C:\Windows\System32\config\systemprofile\.cloudflared`, apunta `credentials-file` ahí y arranca con `sc start cloudflared`. Si el servicio no toma tu config, ajusta `ImagePath` en el registro (`HKLM\SYSTEM\CurrentControlSet\Services\Cloudflared`) a `...cloudflared.exe --config=C:\Windows\System32\config\systemprofile\.cloudflared\config.yml tunnel run`.
-- **Backend** (API + worker): no es un servicio. Para que arranque al iniciar sesión, crea una tarea en el Programador de tareas que ejecute `powershell -File <repo>\scripts\start-backend.ps1 -Mode start`. Hasta entonces hay que lanzarlo a mano.
-- Evita que el PC se suspenda mientras el servicio deba estar disponible (Configuración → Energía).
+Dos piezas, cada una con su script en `scripts/`:
+
+| Pieza | Cómo arranca | Necesita administrador |
+|---|---|---|
+| **Backend** (API + worker) | Tarea programada `tunedrop-backend` al iniciar sesión en Windows. Un supervisor sin ventana reinicia API y worker si se caen. | No |
+| **cloudflared** (túnel) | Servicio de Windows `Cloudflared`, con inicio automático (arranca con el PC, sin iniciar sesión). | **Sí** |
+
+```powershell
+# Backend (PowerShell normal, una sola vez)
+.\scripts\install-autostart.ps1 -StartNow
+
+# Túnel (PowerShell COMO ADMINISTRADOR, una sola vez)
+.\scripts\install-tunnel-service.ps1
+```
+
+`install-tunnel-service.ps1` obtiene el token con `cf tunnels token get` y ejecuta `cloudflared service install`. El token queda en la configuración del servicio (así lo hace cloudflared): trátalo como un secreto.
+
+**Qué hace el supervisor** (`scripts/service-backend.ps1`): una sola instancia a la vez; reinicia el proceso que se caiga (con espera de 60 s si falla 3 veces seguidas en menos de 30 s, para no entrar en bucle); al arrancar cierra API o worker huérfanos que hayan quedado de una ejecución anterior; y guarda los logs en `backend/data/logs` (`api.log`, `worker.log`, `*.err.log`, `supervisor.log`, con rotación a 5 MB).
+
+**Comandos útiles**
+
+| Qué | Comando |
+|---|---|
+| Ver el estado de todo (tarea, procesos, API, túnel y acceso público) | `.\scripts\status.ps1` |
+| Detener el backend por completo | `.\scripts\stop-backend.ps1` |
+| Volver a arrancarlo | `Start-ScheduledTask -TaskName tunedrop-backend` |
+| Quitar el arranque automático del backend | `.\scripts\install-autostart.ps1 -Uninstall` |
+| Quitar el servicio del túnel (administrador) | `.\scripts\install-tunnel-service.ps1 -Uninstall` |
+
+> **Importante:** no uses `Stop-ScheduledTask` a secas para apagar el backend: Windows mata el supervisor de golpe y quedan procesos sueltos. Usa `stop-backend.ps1`. (Si pasa, el siguiente arranque los limpia solo.)
+
+**Límites del arranque automático**
+- La tarea del backend arranca **al iniciar sesión**, no al encender el PC. Para que el sitio vuelva solo tras un reinicio, el PC debe iniciar sesión automáticamente (o entrar tú). Arrancar antes de iniciar sesión exige una tarea con contraseña o un servicio, ambos con administrador.
+- Evita que el PC se **suspenda** mientras el sitio deba estar disponible. Como administrador: `powercfg /change standby-timeout-ac 0` (no suspender con corriente) y `powercfg /change hibernate-timeout-ac 0`. No lo ejecuto yo porque cambia la configuración de energía de tu equipo.
 
 ## Comprobación final
 
