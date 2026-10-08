@@ -1,0 +1,31 @@
+{
+  "name": "tunedrop-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "dev:api": "tsx watch src/api/index.ts",
+    "dev:worker": "tsx watch src/worker/index.ts",
+    "dev": "concurrently -n api,worker -c blue,magenta \"npm run dev:api\" \"npm run dev:worker\"",
+    "start:api": "tsx src/api/index.ts",
+    "start:worker": "tsx src/worker/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test \"src/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.3.1",
+    "@fastify/static": "^10.1.5",
+    "archiver": "^8.0.0",
+    "fastify": "^5.12.5"
+  },
+  "devDependencies": {
+    "@types/archiver": "^8.0.0",
+    "@types/node": "^26.6.4",
+    "concurrently": "^10.0.6",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
