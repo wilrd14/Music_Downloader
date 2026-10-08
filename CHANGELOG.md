@@ -7,6 +7,7 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 ## [Sin publicar]
 
 ### Añadido
+- **Página de presentación e instalación** (`site/`, estática, pensada para Cloudflare Pages): qué es tunedrop, cómo funciona, instalación paso a paso en Windows (incluido el aviso de SmartScreen y la verificación SHA-256), requisitos, preguntas frecuentes y aviso legal. Sin dependencias, sin peticiones a otros dominios, con CSP estricta (`site/_headers`). Verificada en escritorio y móvil (375 px), en claro y oscuro.
 - **CI en GitHub Actions** (`.github/workflows/ci.yml`): en cada pull request y push a `main` ejecuta typecheck y tests del backend, typecheck y build del frontend, y una auditoría informativa de dependencias. Incluye Dependabot semanal y plantilla de pull request.
 - **Arranque automático del backend**: tarea programada `tunedrop-backend` (al iniciar sesión, sin administrador) con un supervisor sin ventana que reinicia la API y el worker si se caen, evita instancias duplicadas, limpia procesos huérfanos al arrancar y guarda logs con rotación en `backend/data/logs`.
 - `scripts/install-tunnel-service.ps1`: instala `cloudflared` como servicio de Windows con inicio automático (requiere administrador).
@@ -27,11 +28,23 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 - Las pruebas ya no leen `backend/.env` (se detectan por `NODE_TEST_CONTEXT`), así que no dependen de la configuración real de la máquina (p. ej. las claves de Turnstile).
 - Las pruebas del worker escribían en la base de datos real (`backend/data`) por un `import` estático que cargaba la configuración antes de fijar `DATA_DIR`; ahora usan una carpeta temporal.
 
-### Pendiente
-- Instalar el servicio del túnel (`install-tunnel-service.ps1`) con permisos de administrador y desactivar la suspensión del PC.
-- Cada canción tarda unos 15-20 s sobre todo por el arranque de `yt-dlp.exe` (≈5-10 s en esta máquina); probar una instalación de yt-dlp que no sea el .exe de un solo archivo (p. ej. `pip install yt-dlp`) podría recortarlo.
-- Limpiar artista y título de videos subidos por canales (p. ej. «… Official YouTube», «(Music Video)»).
-- Decisión legal y host siempre encendido antes de abrirlo al público.
+### Decisiones y estado (2026-10-08, para retomar en otra sesión)
+- **Dirección: local-first.** Cada persona ejecuta en su propio PC la parte que descarga; la web pública solo presenta e instala. Motivo: YouTube bloquea las IPs de servidores (probado en un VPS con 10 clientes distintos de `yt-dlp`: todos piden iniciar sesión; saliendo por una IP de casa mediante un túnel SSH inverso sí funciona), y así ninguna IP concentra las descargas ni se aloja contenido de terceros. La versión «servidor» (límites por IP, Turnstile, ZIP) se conserva como modo opcional.
+- **Spotify descartado**: su API ya no permite leer playlists con credenciales de app.
+- **Programa de escritorio (instalador, Electron o Tauri): fases posteriores.** Primero un zip con todo incluido; después un instalador `.exe` con Inno Setup; la ventana propia solo si hay demanda real. Todo reutiliza el mismo motor local con la interfaz web.
+- **Infraestructura actual (pruebas privadas, en el PC del propietario):** `tunedrop.wilrd14.dev` por Cloudflare Tunnel (túnel `tunedrop`) con Cloudflare Access solo para el propietario; widget de Turnstile `tunedrop` creado; backend como tarea programada `tunedrop-backend`. Ver `docs/deployment-cloudflare.md`.
+- **Rama `feat/modo-local`** (sin fusionar a `main`): ya contiene la página `site/`. El modo local (backend y frontend) lo estaba construyendo un agente en una copia de trabajo aparte (`git worktree list`, rama `worktree-agent-…`) y puede no estar fusionado todavía; antes de seguir, comprobar si esa rama existe y qué trae.
+- **Aviso al reiniciar con el código nuevo:** el modo por defecto pasa a ser `local`. Para conservar el despliegue privado actual hay que poner `TUNEDROP_MODE=server` en `backend/.env` antes de reiniciar el backend.
+
+### Pendiente (orden sugerido)
+1. Fusionar el modo local y comprobarlo: guardar en carpeta, arranque en un solo proceso, protecciones contra peticiones de otras webs, auto-actualización de `yt-dlp` y `npm run build`.
+2. Empaquetado para Windows: zip con Node, la app, `yt-dlp` y `ffmpeg`, más `Iniciar tunedrop.bat`, avisos de licencia (GPL-3.0), sumas SHA-256 y un workflow de GitHub Actions que publique la Release (`tunedrop-windows-x64.zip`).
+3. Publicar `site/` en Cloudflare Pages (root `site`, sin build). Antes hay que liberar el nombre `tunedrop.wilrd14.dev`, que hoy apunta al túnel con Access (retirar o mover ese túnel y su aplicación de Access).
+4. Reescribir el README con el enfoque local-first.
+5. Instalador `.exe` (Inno Setup), paquetes para macOS y Linux, y firma de código.
+6. Programa de escritorio con ventana propia (Electron o Tauri), solo si hay demanda.
+7. Decidir qué hacer con el VPS (descartado para descargar) y con la instancia privada actual; tomar la decisión legal antes de promocionar el proyecto.
+8. Menores: limpiar artista y título de videos subidos por canales («… Official YouTube», «(Music Video)»); probar un `yt-dlp` que no sea el `.exe` de un solo archivo para acortar el arranque (≈5-10 s por canción); imagen para las vistas previas al compartir la web; verificar los avisos de macOS y Linux de la página.
 
 ## [0.1.0] - 2026-10-08
 
