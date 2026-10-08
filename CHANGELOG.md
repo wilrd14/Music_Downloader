@@ -11,13 +11,17 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 - **Arranque automático del backend**: tarea programada `tunedrop-backend` (al iniciar sesión, sin administrador) con un supervisor sin ventana que reinicia la API y el worker si se caen, evita instancias duplicadas, limpia procesos huérfanos al arrancar y guarda logs con rotación en `backend/data/logs`.
 - `scripts/install-tunnel-service.ps1`: instala `cloudflared` como servicio de Windows con inicio automático (requiere administrador).
 - `scripts/status.ps1` (estado de tarea, procesos, API, túnel y acceso público) y `scripts/stop-backend.ps1` (detención completa).
+- **Límites por IP** con `@fastify/rate-limit` usando la IP real de `CF-Connecting-IP` (120 peticiones/min a `/api/*`, 20 a `/api/resolve`, 6 a `POST /api/jobs`, 30 a las descargas); respuesta 429 en español con `Retry-After`.
+- **Topes**: `MAX_QUEUED_JOBS` (30), `MAX_ACTIVE_JOBS_PER_IP` (2) y `MAX_DISK_MB` (4096, 503 al llenarse). Nueva columna `jobs.client_key` (huella HMAC de la IP, nunca la IP) con migración segura.
+- **Cloudflare Turnstile**: `GET /api/config`, verificación del token en `POST /api/jobs` (falla cerrado) y componente `TurnstileWidget` en la interfaz; la CSP permite `challenges.cloudflare.com`.
+- El worker borra las filas de trabajos terminados con más de 24 h (minimización de datos).
 
 ### Eliminado
 - **Soporte de Spotify**: tunedrop vuelve a ser solo YouTube y YouTube Music. Se quitan el resolver de Spotify, el emparejamiento en YouTube, el etiquetado con datos de Spotify, la descarga de portadas, las variables `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET`, el origen `i.scdn.co` de la CSP y el campo `album`. El motivo: desde 2026 la API de Spotify no permite leer playlists con credenciales de aplicación (exige que cada usuario inicie sesión y limita las apps nuevas a muy pocos usuarios), y mantener el resto (búsqueda, coincidencias, etiquetas) daba demasiados problemas. Los metadatos y la portada de YouTube se incrustan siempre. Las bases de datos existentes siguen funcionando: la columna `album` queda sin usar.
 
 ### Pendiente
 - Instalar el servicio del túnel (`install-tunnel-service.ps1`) con permisos de administrador y desactivar la suspensión del PC.
-- Límite de peticiones por IP, Cloudflare Turnstile, tope de cola y cuota de disco (ver `docs/security.md`).
+- Crear el widget de Turnstile en el panel de Cloudflare y poner sus claves en `backend/.env` (ver `docs/security.md`).
 - Procesar varias canciones de una playlist a la vez (hoy son unos 19 s por canción).
 - Limpiar artista y título de videos subidos por canales (p. ej. «… Official YouTube», «(Music Video)»).
 - Decisión legal y host siempre encendido antes de abrirlo al público.

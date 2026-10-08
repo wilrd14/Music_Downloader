@@ -27,6 +27,8 @@ export default function App() {
   const [submitting, setSubmitting] = useState(false);
   const [resolveError, setResolveError] = useState<string | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
+  // Los tokens de Turnstile son de un solo uso: cada envío (bien o mal) pide uno nuevo.
+  const [captchaReset, setCaptchaReset] = useState(0);
 
   const handleResolve = async (url: string) => {
     setResolving(true);
@@ -43,17 +45,18 @@ export default function App() {
     }
   };
 
-  const handleConfirm = async (trackIds: string[] | undefined) => {
+  const handleConfirm = async (trackIds: string[] | undefined, turnstileToken: string | null) => {
     setSubmitting(true);
     setJobError(null);
     try {
-      const { id } = await createJob(sourceUrl, format, trackIds);
+      const { id } = await createJob(sourceUrl, format, trackIds, turnstileToken);
       setSource(null);
       start(id);
     } catch (e) {
       setJobError(msg(e));
     } finally {
       setSubmitting(false);
+      setCaptchaReset((n) => n + 1);
     }
   };
 
@@ -136,6 +139,8 @@ export default function App() {
                 onDismissError={() => setJobError(null)}
                 onConfirm={handleConfirm}
                 onCancel={handleNew}
+                theme={theme}
+                captchaResetSignal={captchaReset}
               />
             )}
           </div>

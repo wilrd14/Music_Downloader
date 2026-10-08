@@ -4,24 +4,33 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ZipArchive } from 'archiver';
 import cors from '@fastify/cors';
+import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyServerOptions } from 'fastify';
 import {
   AUDIO_FORMATS,
+  clientKeyFor,
   config,
+  countActiveJobsByClient,
+  countQueuedJobs,
+  createDiskUsage,
   createJob,
   getDb,
   getJobRow,
   getJobState,
   getTrackRows,
+  limits as defaultLimits,
   sanitizeFileName,
   UserError,
   type AudioFormat,
   type HealthState,
+  type Limits,
   type ResolvedSource,
   type Resolver,
 } from '../core';
 import { checkTools, findResolver, resolvers as defaultResolvers } from '../resolvers';
+import { clientIp } from './clientIp';
+import { verifyTurnstile } from './turnstile';
 
 export interface AppOptions {
   logger?: FastifyServerOptions['logger'];
@@ -30,16 +39,23 @@ export interface AppOptions {
   checkTools?: () => Promise<HealthState>;
   /** Carpeta de la interfaz compilada; null/ausente o inexistente = solo API. */
   staticDir?: string | null;
+  /** Sustituye valores de los límites (rate limit, topes, Turnstile). Útil para pruebas. */
+  limits?: Partial<Limits>;
+  /** Bytes usados por data/jobs (por defecto, recorrido de la carpeta con caché de ~10 s). */
+  diskUsage?: () => Promise<number> | number;
+  /** fetch usado para llamar a siteverify de Turnstile. */
+  turnstileFetch?: typeof fetch;
 }
 
 const API_CSP = "default-src 'none'; frame-ancestors 'none'";
 // Debe coincidir con frontend/public/_headers (que aplica Cloudflare Pages si algún día se usa).
 const FRONTEND_CSP = [
   "default-src 'self'",
-  "script-src 'self'",
+  "script-src 'self' https://challenges.cloudflare.com",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https://i.ytimg.com",
   "connect-src 'self'",
+  'frame-src https://challenges.cloudflare.com',
   "font-src 'self'",
   "object-src 'none'",
   "base-uri 'self'",
@@ -72,6 +88,11 @@ export async function buildApp(options: AppOptions = {}) {
 
   getDb();
 
+  const lim: Limits = { ...defaultLimits, ...options.limits };
+  const diskUsage = options.diskUsage ?? createDiskUsage(config.jobsDir);
+  const retryAfter = (reply: { header: (k: string, v: string) => unknown }, seconds: number) =>
+    reply.header('Retry-After', String(seconds));
+
   const app = Fastify({
     logger: options.logger ?? false,
     bodyLimit: config.bodyLimitBytes,
@@ -79,6 +100,24 @@ export async function buildApp(options: AppOptions = {}) {
     connectionTimeout: 60_000,
   });
   await app.register(cors, { origin: config.corsOrigin ?? false });
+
+  if (!lim.turnstileSecretKey) {
+    app.log.warn('TURNSTILE_SECRET_KEY no está definida: no se verifica el anti-bots (solo aceptable en desarrollo).');
+  } else if (!lim.turnstileSiteKey) {
+    app.log.warn('TURNSTILE_SITE_KEY no está definida: el frontend no podrá obtener el token y se rechazarán las descargas.');
+  }
+
+  // Límites por IP real del cliente. Los archivos estáticos quedan fuera; las rutas sensibles llevan su propio límite.
+  await app.register(rateLimit, {
+    global: true,
+    max: lim.rateGeneralPerMin,
+    timeWindow: lim.rateWindowMs,
+    keyGenerator: (req) => clientIp(req),
+    allowList: (req) => !req.url.startsWith('/api/'),
+    // El tiempo de espera viaja en la cabecera Retry-After; la interfaz lo muestra.
+    errorResponseBuilder: () => new UserError('Demasiadas peticiones desde tu conexión. Espera un momento e inténtalo de nuevo.', 429),
+  });
+  const routeLimit = (max: number) => ({ config: { rateLimit: { max, timeWindow: lim.rateWindowMs } } });
 
   app.addHook('onRequest', async (req, reply) => {
     // Cabeceras de seguridad (la API solo devuelve JSON, SSE o archivos: nada que renderizar ni incrustar).
@@ -130,18 +169,67 @@ export async function buildApp(options: AppOptions = {}) {
     return healthCache.data;
   });
 
-  app.post<{ Body: { url?: unknown } }>('/api/resolve', async (req) => {
+  // Datos públicos para la interfaz (nunca la clave secreta).
+  app.get('/api/config', async () => ({ turnstileSiteKey: lim.turnstileSecretKey ? lim.turnstileSiteKey : null }));
+
+  app.post<{ Body: { url?: unknown } }>('/api/resolve', routeLimit(lim.rateResolvePerMin), async (req) => {
     const url = asText(req.body?.url);
     if (!url) throw new UserError('Pega un enlace.');
     const source = await resolveCached(url);
     return { ...source, maxTracksPerJob: config.maxTracksPerJob };
   });
 
-  app.post<{ Body: { url?: unknown; format?: AudioFormat; trackIds?: string[] } }>('/api/jobs', async (req) => {
+  /** Topes de cola y por IP (síncrono: se vuelve a comprobar justo antes de crear el trabajo). */
+  const checkQueueCaps = (clientKey: string, reply: { header: (k: string, v: string) => unknown }) => {
+    if (countQueuedJobs() >= lim.maxQueuedJobs) {
+      retryAfter(reply, 60);
+      throw new UserError('Hay muchas descargas en cola ahora mismo. Inténtalo de nuevo en unos minutos.', 429);
+    }
+    if (countActiveJobsByClient(clientKey) >= lim.maxActiveJobsPerIp) {
+      retryAfter(reply, 30);
+      throw new UserError(
+        `Ya tienes ${lim.maxActiveJobsPerIp} descargas en curso. Espera a que terminen antes de iniciar otra.`,
+        429,
+      );
+    }
+  };
+
+  app.post<{
+    Body: { url?: unknown; format?: AudioFormat; trackIds?: string[]; turnstileToken?: unknown };
+  }>('/api/jobs', routeLimit(lim.rateJobsPerMin), async (req, reply) => {
     const url = asText(req.body?.url);
     const format = req.body?.format ?? 'mp3';
     if (!url) throw new UserError('Pega un enlace.');
     if (!AUDIO_FORMATS.includes(format)) throw new UserError('Formato no soportado.');
+
+    const ip = clientIp(req);
+    const clientKey = clientKeyFor(ip);
+
+    // Topes: disco, cola global y por IP (antes de gastar yt-dlp o una verificación).
+    if ((await diskUsage()) >= lim.maxDiskBytes) {
+      retryAfter(reply, 120);
+      throw new UserError('El servicio está al límite de almacenamiento. Inténtalo de nuevo en unos minutos.', 503);
+    }
+    checkQueueCaps(clientKey, reply);
+
+    // Anti-bots (si hay clave secreta configurada).
+    if (lim.turnstileSecretKey) {
+      const token = req.body?.turnstileToken;
+      if (typeof token !== 'string' || !token)
+        throw new UserError('Falta la verificación anti-bots. Recarga la página e inténtalo de nuevo.', 400);
+      const verdict = await verifyTurnstile({
+        secret: lim.turnstileSecretKey,
+        token,
+        ip,
+        fetch: options.turnstileFetch,
+      });
+      if (verdict === 'invalid')
+        throw new UserError('Verificación anti-bots fallida. Recarga la página e inténtalo de nuevo.', 403);
+      if (verdict === 'unavailable') {
+        retryAfter(reply, 30);
+        throw new UserError('No se pudo completar la verificación anti-bots. Inténtalo de nuevo en unos instantes.', 503);
+      }
+    }
 
     const source = await resolveCached(url);
     let tracks = source.tracks;
@@ -154,8 +242,12 @@ export async function buildApp(options: AppOptions = {}) {
     if (tracks.length > config.maxTracksPerJob)
       throw new UserError(`Máximo ${config.maxTracksPerJob} canciones por descarga.`);
 
+    // Tras esperar a yt-dlp otra petición pudo llenar la cola: se comprueba de nuevo sin await de por medio.
+    checkQueueCaps(clientKey, reply);
+
     const id = crypto.randomUUID();
     createJob({
+      clientKey,
       id,
       provider: source.provider,
       sourceUrl: source.sourceUrl,
@@ -230,7 +322,7 @@ export async function buildApp(options: AppOptions = {}) {
     tick();
   });
 
-  app.get<{ Params: { id: string } }>('/api/jobs/:id/download', async (req, reply) => {
+  app.get<{ Params: { id: string } }>('/api/jobs/:id/download', routeLimit(lim.rateDownloadPerMin), async (req, reply) => {
     const job = getJobRow(req.params.id);
     if (!job) return reply.code(404).send({ error: 'Descarga no encontrada.' });
     if (job.status === 'expired') return reply.code(410).send({ error: 'La descarga expiró. Vuelve a generarla.' });

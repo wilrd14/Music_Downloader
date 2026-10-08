@@ -14,6 +14,7 @@ import {
   type JobRow,
 } from '../core';
 import { getResolver } from '../resolvers';
+import { limits, purgeOldJobs } from '../core';
 
 const log = (...args: unknown[]) => console.log(new Date().toISOString(), '[worker]', ...args);
 
@@ -134,6 +135,13 @@ function cleanup() {
     } catch (err) {
       console.error(`no se pudo expirar el job ${id}`, err);
     }
+  }
+  // Minimización de datos: las filas de trabajos terminados se borran pasadas 24 h.
+  try {
+    const purged = purgeOldJobs(limits.jobRowRetentionMs);
+    if (purged) log(`${purged} trabajo(s) antiguo(s) borrado(s) de la base de datos`);
+  } catch (err) {
+    console.error('purga de trabajos antiguos falló', err);
   }
 }
 
