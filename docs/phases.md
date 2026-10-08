@@ -13,9 +13,10 @@
 - [ ] Probar playlists de YouTube **y de YouTube Music** (`music.youtube.com/playlist?list=...`) con ZIP real
 
 ## Fase 2: Despliegue de pruebas
+- [x] El backend sirve la interfaz compilada en el mismo origen (probado)
 - [ ] Cloudflare Tunnel hacia el backend en el PC (servicio de Windows)
-- [ ] Frontend en Cloudflare Pages
-- [ ] Variable `VITE_API_BASE` en el frontend y `CORS_ORIGIN` en el backend
+- [ ] (Opcional, fase pública) Frontend en Cloudflare Pages
+- [ ] (Solo si se usa Pages) Variable `VITE_API_BASE` en el frontend y `CORS_ORIGIN` en el backend
 - [ ] Cloudflare Access (lista de correos permitidos) durante las pruebas privadas
 
 ## Fase 3: Spotify

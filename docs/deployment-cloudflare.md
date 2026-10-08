@@ -1,34 +1,49 @@
-# Despliegue con Cloudflare (fase de pruebas)
+# Despliegue con Cloudflare (fase de pruebas privada)
 
-Arquitectura: frontend estático en **Cloudflare Pages**, backend en tu PC (Windows) expuesto con **Cloudflare Tunnel**, y opcionalmente **Cloudflare Access** delante para restringir por correo durante las pruebas privadas.
+**Arquitectura elegida:** un solo dominio, `tunedrop.wilrd14.dev`. El backend (API + worker) corre en tu PC con Windows y **también sirve la interfaz compilada** (`frontend/dist`). **Cloudflare Tunnel** lo publica sin abrir puertos, y **Cloudflare Access** lo restringe a tu correo.
 
-Nombres usados en esta guía (provisionales, cámbialos a gusto):
+```
+Navegador ─► Cloudflare (DNS, TLS, Access: solo tu correo)
+                 └─ Tunnel ─► PC: http://127.0.0.1:8787  (interfaz + /api, un solo origen)
+```
 
-| Pieza | Hostname |
+Ventajas: un túnel, un hostname, **sin CORS** y Access protege interfaz y API juntas (evita el problema de Access + CORS entre dos dominios). Inconveniente: sin tu PC encendida no hay interfaz. Pages queda como opción para la fase pública (ver el final).
+
+> **Qué está verificado.** El código que sirve la interfaz con sus cabeceras de seguridad está probado (tests y navegador, en `http://127.0.0.1:8787`). Los pasos de `cloudflared` y Access se contrastaron con la documentación oficial pero **aún no se han ejecutado** en tu cuenta; lo que no se pudo confirmar va marcado **[no verificado]**.
+
+| Pieza | Valor |
 |---|---|
-| Frontend (Pages) | `tunedrop.wilrd14.dev` |
-| API (túnel) | `tunedrop-api.wilrd14.dev` |
+| Hostname | `tunedrop.wilrd14.dev` |
 | Nombre del túnel | `tunedrop` |
+| Origen local | `http://127.0.0.1:8787` |
 
-> **Verificación.** Los comandos de `cloudflared` (login, create, route dns, run, servicio de Windows), el formato de `config.yml` y la creación de aplicaciones de Access con política por correo se contrastaron con la documentación oficial de Cloudflare (developers.cloudflare.com, consultada vía búsqueda de documentación). **No se ejecutó nada** de lo descrito aquí. Los puntos marcados **[no verificado]** no pudieron confirmarse.
+## 1. Compilar la interfaz y arrancar el backend
 
-## 1. Instalar cloudflared en Windows
+```powershell
+cd frontend; npm install; npm run build        # genera frontend\dist
+cd ..\backend; npm install
+copy .env.example .env                           # si aún no existe; rellena SPOTIFY_* en .env
+.\..\scripts\start-backend.ps1 -Mode start       # API + worker
+```
+Comprueba <http://127.0.0.1:8787/> (interfaz) y <http://127.0.0.1:8787/api/health>. Si cambias el frontend, vuelve a ejecutar `npm run build`; no hace falta reiniciar el backend.
+
+## 2. Instalar cloudflared
 
 ```powershell
 winget install --id Cloudflare.cloudflared
 ```
-**[no verificado]**: el id exacto del paquete en winget. Alternativa: descargar `cloudflared-windows-amd64.exe` desde <https://developers.cloudflare.com/tunnel/downloads/>. Cierra y reabre la terminal y comprueba con `cloudflared --version` (o `.\scripts\check-tools.ps1`).
+**[no verificado]**: el id exacto del paquete. Alternativa: <https://developers.cloudflare.com/tunnel/downloads/>. Cierra y reabre la terminal y comprueba `cloudflared --version`.
 
-## 2. Crear un túnel con nombre (gestionado localmente)
+## 3. Crear el túnel (necesita tu cuenta de Cloudflare)
 
 ```powershell
-cloudflared tunnel login                    # abre el navegador; elige la zona wilrd14.dev
-cloudflared tunnel create tunedrop          # genera <UUID>.json en %USERPROFILE%\.cloudflared
+cloudflared tunnel login                 # abre el navegador: inicia sesión y elige la zona wilrd14.dev
+cloudflared tunnel create tunedrop       # crea <UUID>.json en %USERPROFILE%\.cloudflared
 cloudflared tunnel list
 ```
-Anota el UUID y la ruta del archivo de credenciales.
+Anota el UUID.
 
-## 3. config.yml
+## 4. config.yml
 
 Crea `%USERPROFILE%\.cloudflared\config.yml`:
 
@@ -37,95 +52,43 @@ tunnel: <UUID-DEL-TUNEL>
 credentials-file: C:\Users\<TU-USUARIO>\.cloudflared\<UUID-DEL-TUNEL>.json
 
 ingress:
-  - hostname: tunedrop-api.wilrd14.dev
+  - hostname: tunedrop.wilrd14.dev
     service: http://127.0.0.1:8787
   - service: http_status:404
 ```
+Valida con `cloudflared tunnel ingress validate`. La última regla es obligatoria.
 
-Valida con `cloudflared tunnel ingress validate`. La última regla (`http_status:404`) es obligatoria como "catch-all".
-
-## 4. Ruta DNS
-
-```powershell
-cloudflared tunnel route dns tunedrop tunedrop-api.wilrd14.dev
-```
-Crea un CNAME proxied hacia `<UUID>.cfargotunnel.com`.
-
-## 5. Probar en primer plano
-
-Con el backend corriendo (`npm run start:api` y `npm run start:worker`, o `scripts\start-backend.ps1`):
+## 5. Ruta DNS y prueba
 
 ```powershell
+cloudflared tunnel route dns tunedrop tunedrop.wilrd14.dev
 cloudflared tunnel run tunedrop
 ```
-Prueba <https://tunedrop-api.wilrd14.dev/api/health>.
+Abre <https://tunedrop.wilrd14.dev>. **Haz el paso 6 antes de compartir el enlace**: hasta entonces la URL es pública.
 
-## 6. Ejecutar cloudflared como servicio de Windows
+## 6. Cloudflare Access: solo tu correo
 
-Según la guía oficial (CMD como administrador):
+Panel de Cloudflare → **Zero Trust → Access controls → Applications → Create new application → Self-hosted**:
 
-1. Coloca `cloudflared.exe` en `C:\Cloudflared\bin` y ejecuta `cloudflared.exe service install`.
-2. Crea `C:\Windows\System32\config\systemprofile\.cloudflared` y copia ahí `cert.pem`, el `<UUID>.json` y `config.yml` (el servicio corre como SYSTEM y no lee tu perfil).
-3. En `config.yml` apunta `credentials-file` a `C:\Windows\System32\config\systemprofile\.cloudflared\<UUID>.json`.
-4. Si el servicio no usa tu config, edita en el registro `HKLM\SYSTEM\CurrentControlSet\Services\Cloudflared` el valor `ImagePath` a:
-   `C:\Cloudflared\bin\cloudflared.exe --config=C:\Windows\System32\config\systemprofile\.cloudflared\config.yml tunnel run`
-5. `sc start cloudflared`.
+1. Hostname: `tunedrop.wilrd14.dev`.
+2. Política **Allow** con regla *Include → Emails* y tu correo. Una aplicación sin política lo deniega todo.
+3. Guarda y prueba desde una ventana de incógnito: debe pedirte el código por correo antes de mostrar la web.
 
-Para cambios posteriores de configuración, reinicia el servicio. **Ojo:** el túnel solo sirve mientras el PC esté encendido y los procesos del backend corriendo; el backend (API + worker) **no** es un servicio, hay que lanzarlo (ver `scripts\start-backend.ps1`).
+Etiquetas exactas del panel pueden variar. La primera vez puede pedirte crear la cuenta de Zero Trust (el plan gratuito basta).
 
-## 7. Cloudflare Access (lista de correos) para la fase privada
+## 7. Que no se caiga al reiniciar el PC
 
-En el panel de Cloudflare: **Zero Trust > Access controls > Applications > Create new application > Self-hosted**.
-
-1. Añade el hostname público a proteger.
-2. Crea una política **Allow** con regla *Include > Emails* y tus correos permitidos (una aplicación sin política deniega todo).
-3. Guarda.
-
-Etiquetas exactas del panel pueden variar ligeramente. Hay que proteger **tanto el frontend como la API**, pero véase la advertencia de CORS más abajo.
-
-## 8. Frontend en Cloudflare Pages
-
-Conecta el repositorio de Git y configura:
-
-| Campo | Valor |
-|---|---|
-| Root directory | `frontend` |
-| Build command | `npm run build` |
-| Build output directory | `dist` |
-| Variable de entorno | `VITE_API_BASE=https://tunedrop-api.wilrd14.dev` (ver TODO) |
-
-Después, en el proyecto de Pages: **Custom domains** -> `tunedrop.wilrd14.dev`. La documentación oficial indica que el *root directory* sirve para proyectos donde el contenido no está en la raíz del repositorio, que es nuestro caso. Nota: Cloudflare está empujando la migración de Pages a Workers con static assets (existe una guía oficial de migración); Pages sigue documentado, pero conviene revisarlo al desplegar. **[no verificado]**: el estado de soporte/deprecación de Pages a la fecha.
-
-## 9. Mismo hostname vs. API en subdominio separado
-
-El frontend llama a rutas **relativas** `/api/...`. Hay dos formas de hacerlas llegar a la API:
-
-**Opción A: mismo hostname.** `tunedrop.wilrd14.dev` sirve Pages y las rutas `/api/*` van al túnel. Requiere un Worker o Pages Function que haga proxy de `/api/*` hacia el hostname del túnel (y que soporte SSE y descargas largas/ZIP sin buffering), o una regla de ruta de Workers delante de Pages. No hay CORS ni cookies cross-site, y Access se configura una sola vez. Contras: más piezas, límites de CPU/tiempo de los Workers para streaming largo **[no verificado]**, y el tráfico de descarga pasa por el Worker.
-
-**Opción B: API en subdominio separado** (`tunedrop-api.wilrd14.dev`) con `CORS_ORIGIN=https://tunedrop.wilrd14.dev` en `backend/.env`. Sin Workers; el navegador habla directo con el túnel. Contras: CORS, hay que cambiar el frontend, y con Access delante hay fricción (ver abajo).
-
-**Recomendación: Opción B**, por simplicidad y porque el tráfico de descargas/SSE va directo al túnel. Usa un subdominio de primer nivel (`tunedrop-api`, no `api.tunedrop`): el certificado universal gratuito de Cloudflare cubre solo un nivel de subdominio **[no verificado, conocimiento general]**.
-
-Backend `.env`:
-```
-CORS_ORIGIN=https://tunedrop.wilrd14.dev
-```
-(`@fastify/cors` está configurado con ese único origen; no se envía `credentials`, así que cookies cross-site no se aceptan desde el backend.)
-
-### Advertencia: Access + CORS
-
-Si proteges la API con Access y el frontend está en otro origen, las peticiones `fetch`/`EventSource` cross-origin necesitan la cookie de Access y las peticiones de preflight `OPTIONS` no la llevan, por lo que Access las bloquea. Opciones: (1) usar la Opción A (mismo origen); (2) en la política/aplicación de la API, habilitar la omisión de peticiones `OPTIONS` (ajuste "bypass OPTIONS" de CORS en Access) y que el frontend use `credentials: 'include'`, lo cual además exigiría que el backend envíe `Access-Control-Allow-Credentials` (hoy no lo hace); (3) durante la prueba privada proteger solo el frontend con Access y confiar en que el id de trabajo es un UUID no adivinable (la API quedaría pública pero sin listado). **[no verificado]**: el nombre exacto del ajuste de CORS en Access y su comportamiento con EventSource. Esta es la parte más incierta del despliegue; pruébala antes de invitar a nadie.
-
-## TODO para el frontend
-
-El frontend hoy llama a `/api` relativo (y en desarrollo Vite lo reenvía al backend). Para la Opción B hace falta:
-
-- [ ] Definir `VITE_API_BASE` (vacío en desarrollo; `https://tunedrop-api.wilrd14.dev` en producción) y anteponerlo a **todas** las URL: `fetch`, `EventSource` (`/api/jobs/:id/events`) y el enlace de descarga (`/api/jobs/:id/download`).
-- [ ] Si se usa Access cross-origin: `credentials: 'include'` / `new EventSource(url, { withCredentials: true })`, y `Access-Control-Allow-Credentials` en el backend.
-- [ ] Añadir el archivo `.env.production` o la variable en el panel de Pages.
+- **cloudflared como servicio de Windows** (CMD como administrador): coloca `cloudflared.exe` en `C:\Cloudflared\bin`, ejecuta `cloudflared.exe service install`, copia `cert.pem`, `<UUID>.json` y `config.yml` a `C:\Windows\System32\config\systemprofile\.cloudflared`, apunta `credentials-file` ahí y arranca con `sc start cloudflared`. Si el servicio no toma tu config, ajusta `ImagePath` en el registro (`HKLM\SYSTEM\CurrentControlSet\Services\Cloudflared`) a `...cloudflared.exe --config=C:\Windows\System32\config\systemprofile\.cloudflared\config.yml tunnel run`.
+- **Backend** (API + worker): no es un servicio. Para que arranque al iniciar sesión, crea una tarea en el Programador de tareas que ejecute `powershell -File <repo>\scripts\start-backend.ps1 -Mode start`. Hasta entonces hay que lanzarlo a mano.
+- Evita que el PC se suspenda mientras el servicio deba estar disponible (Configuración → Energía).
 
 ## Comprobación final
 
-1. `https://tunedrop-api.wilrd14.dev/api/health` devuelve `{"ok":true,...}`.
-2. Desde `https://tunedrop.wilrd14.dev`, resolver un enlace, crear un trabajo, ver progreso y descargar.
-3. Revisar la consola del navegador por errores de CORS.
+1. `https://tunedrop.wilrd14.dev` sin sesión muestra la pantalla de Access; con tu correo carga la interfaz.
+2. Resolver un enlace, descargar y ver progreso; el archivo llega a tu carpeta de Descargas.
+3. Consola del navegador sin errores de CSP ni de red.
+4. Cabeceras: `curl -I https://tunedrop.wilrd14.dev/` (con sesión) muestra `Content-Security-Policy` y `X-Frame-Options`.
+
+## Opción futura: interfaz en Cloudflare Pages (fase pública)
+
+Si más adelante quieres la interfaz siempre disponible aunque el PC esté apagado, puedes alojarla en Pages (`frontend/public/_headers` ya trae las cabeceras) y dejar la API en un hostname aparte (`tunedrop-api.wilrd14.dev`, de un solo nivel por el certificado gratuito **[no verificado]**). Eso requiere: `VITE_API_BASE` en el frontend (anteponerlo a `fetch`, `EventSource` y el enlace de descarga), `CORS_ORIGIN` en `backend/.env`, añadir el origen de la API a `connect-src` de la CSP, y retirar Access o resolver su interacción con CORS y `EventSource` **[no verificado]**. Pages en sí: Cloudflare impulsa migrar a Workers con static assets; revisa el estado actual **[no verificado]**.

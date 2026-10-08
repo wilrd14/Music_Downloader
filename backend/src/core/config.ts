@@ -22,6 +22,8 @@ export const config = {
   dbPath: path.join(dataDir, 'tunedrop.db'),
   jobsDir: path.join(dataDir, 'jobs'),
   apiPort: num(process.env.API_PORT, 8787),
+  /** Carpeta de la interfaz compilada (frontend/dist). Si no existe, solo se sirve la API. */
+  staticDir: process.env.STATIC_DIR ? path.resolve(process.env.STATIC_DIR) : path.resolve(root, '../frontend/dist'),
   corsOrigin: process.env.CORS_ORIGIN ?? null,
   maxTracksPerJob: num(process.env.MAX_TRACKS_PER_JOB, 100),
   maxResolveEntries: 300,

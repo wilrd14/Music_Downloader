@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ZipArchive } from 'archiver';
 import cors from '@fastify/cors';
+import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyServerOptions } from 'fastify';
 import {
   AUDIO_FORMATS,
@@ -27,7 +28,24 @@ export interface AppOptions {
   /** Resolvers a usar (por defecto los registrados). Útil para pruebas. */
   resolvers?: Resolver[];
   checkTools?: () => Promise<HealthState>;
+  /** Carpeta de la interfaz compilada; null/ausente o inexistente = solo API. */
+  staticDir?: string | null;
 }
+
+const API_CSP = "default-src 'none'; frame-ancestors 'none'";
+// Debe coincidir con frontend/public/_headers (que aplica Cloudflare Pages si algún día se usa).
+const FRONTEND_CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: https://i.ytimg.com https://i.scdn.co",
+  "connect-src 'self'",
+  "font-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join('; ');
 
 export const contentDisposition = (fileName: string) => {
   const fallback = fileName.replace(/[^\x20-\x7e]/g, '_').replace(/["\\%;]/g, '_');
@@ -64,10 +82,12 @@ export async function buildApp(options: AppOptions = {}) {
 
   app.addHook('onRequest', async (req, reply) => {
     // Cabeceras de seguridad (la API solo devuelve JSON, SSE o archivos: nada que renderizar ni incrustar).
+    const isApi = req.url.startsWith('/api/');
     reply.header('X-Content-Type-Options', 'nosniff');
     reply.header('X-Frame-Options', 'DENY');
-    reply.header('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
-    reply.header('Referrer-Policy', 'no-referrer');
+    reply.header('Content-Security-Policy', isApi ? API_CSP : FRONTEND_CSP);
+    reply.header('Referrer-Policy', isApi ? 'no-referrer' : 'strict-origin-when-cross-origin');
+    if (!isApi) reply.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
 
     // Los POST deben ser JSON: obliga al preflight de CORS y frena formularios cruzados (CSRF).
     if (req.method === 'POST' && !String(req.headers['content-type'] ?? '').toLowerCase().startsWith('application/json')) {
@@ -241,6 +261,24 @@ export async function buildApp(options: AppOptions = {}) {
       .header('Content-Disposition', contentDisposition(`${folder}.zip`))
       .send(archive);
   });
+
+  // Interfaz compilada en el mismo origen: sin CORS y con una sola política de acceso.
+  const staticDir = options.staticDir === undefined ? config.staticDir : options.staticDir;
+  if (staticDir && fs.existsSync(path.join(staticDir, 'index.html'))) {
+    await app.register(fastifyStatic, {
+      root: staticDir,
+      wildcard: false,
+      allowedPath: (p) => !p.endsWith('/_headers'),
+      setHeaders(res, filePath) {
+        const hashed = filePath.split(path.sep).includes('assets'); // nombres con hash: cacheables
+        res.header('Cache-Control', hashed ? 'public, max-age=31536000, immutable' : 'no-cache');
+      },
+    });
+    app.setNotFoundHandler((req, reply) => {
+      if (req.method === 'GET' && !req.url.startsWith('/api/')) return reply.sendFile('index.html');
+      return reply.code(404).send({ error: 'No encontrado.' });
+    });
+  }
 
   return app;
 }

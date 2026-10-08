@@ -81,6 +81,7 @@ Scripts de `backend/`: `npm run dev` (API + worker con recarga), `dev:api`, `dev
 | Variable | Por defecto | Descripción |
 |---|---|---|
 | `API_PORT` | `8787` | Puerto de la API. Siempre escucha en `127.0.0.1`. |
+| `STATIC_DIR` | `../frontend/dist` | Carpeta de la interfaz compilada que sirve el backend |
 | `MAX_TRACKS_PER_JOB` | `100` | Máximo de canciones por descarga. |
 | `JOB_TTL_MINUTES` | `30` | Minutos que se conserva un trabajo terminado antes de borrar sus archivos. |
 | `WORKER_CONCURRENCY` | `2` | Trabajos que el worker procesa en paralelo. |
