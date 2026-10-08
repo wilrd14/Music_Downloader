@@ -23,12 +23,12 @@ export default function UrlForm({ loading, error, onDismissError, onSubmit }: Pr
     onSubmit(v);
   };
 
-  const shownError = emptyError ? 'Pega primero un enlace de YouTube o Spotify.' : error;
+  const shownError = emptyError ? 'Pega primero un enlace de YouTube o YouTube Music.' : error;
 
   return (
     <form onSubmit={handle} noValidate className="w-full" aria-busy={loading}>
       <label htmlFor="url" className="sr-only">
-        Enlace de YouTube o Spotify
+        Enlace de YouTube o YouTube Music
       </label>
       <div className="flex flex-col gap-3 sm:flex-row">
         <input
@@ -43,7 +43,7 @@ export default function UrlForm({ loading, error, onDismissError, onSubmit }: Pr
             setUrl(e.target.value);
             if (emptyError) setEmptyError(false);
           }}
-          placeholder="Pega un enlace de YouTube (video o playlist) o Spotify (canción o álbum)"
+          placeholder="Pega un enlace de YouTube o YouTube Music (video o playlist)"
           aria-invalid={shownError ? true : undefined}
           aria-describedby={shownError ? 'url-error' : undefined}
           className="h-14 w-full min-w-0 shrink-0 rounded-2xl sm:flex-1 sm:shrink border border-slate-300 bg-white px-4 text-base text-slate-900 shadow-sm outline-none transition placeholder:text-slate-500 focus:border-violet-600 focus:ring-4 focus:ring-violet-600/20 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-400 dark:focus:border-violet-400 dark:focus:ring-violet-400/25"

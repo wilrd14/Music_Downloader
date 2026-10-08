@@ -22,7 +22,7 @@ Ventajas: un túnel, un hostname, **sin CORS** y Access protege interfaz y API j
 ```powershell
 cd frontend; npm install; npm run build        # genera frontend\dist
 cd ..\backend; npm install
-copy .env.example .env                           # si aún no existe; rellena SPOTIFY_* en .env
+copy .env.example .env                           # si aún no existe
 .\..\scripts\start-backend.ps1 -Mode start       # API + worker
 ```
 Comprueba <http://127.0.0.1:8787/> (interfaz) y <http://127.0.0.1:8787/api/health>. Si cambias el frontend, vuelve a ejecutar `npm run build`; no hace falta reiniciar el backend.

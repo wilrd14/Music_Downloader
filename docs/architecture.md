@@ -135,7 +135,7 @@ tracks(
 );
 ```
 
-## Añadir un nuevo Resolver (p. ej. Spotify)
+## Añadir un nuevo Resolver
 
 La interfaz está en `backend/src/core/types.ts`:
 
@@ -149,14 +149,12 @@ interface Resolver {
 ```
 
 Pasos:
-1. Crear `backend/src/resolvers/spotify.ts` que exporte un objeto `Resolver` con `name: 'spotify'`.
-2. `canHandle`: aceptar hosts `open.spotify.com` (track/album/playlist).
-3. `resolve`: obtener metadatos de Spotify y devolver `TrackInfo[]` con `artist`, `title`, `durationSec`. Como `download` recibe el `TrackInfo`, el campo `url` puede guardar una consulta o el enlace de Spotify.
-4. `download`: buscar en YouTube (p. ej. `ytsearch1:artista título`) reutilizando la lógica de `youtube.ts` y llamar a `onProgress`; devolver la ruta final. Verificar la duración para evitar coincidencias erróneas.
+1. Crear `backend/src/resolvers/<fuente>.ts` que exporte un objeto `Resolver` con su `name`.
+2. `canHandle`: aceptar solo los hosts de la fuente.
+3. `resolve`: obtener los metadatos y devolver `TrackInfo[]` con `artist`, `title`, `durationSec`.
+4. `download`: descargar el audio (reutilizando la lógica de `youtube.ts` si sirve), llamar a `onProgress` y devolver la ruta final.
 5. Registrarlo en el arreglo `resolvers` de `backend/src/resolvers/index.ts`. API y worker lo resuelven por `findResolver(url)` / `getResolver(name)`; no hay que tocar rutas ni la cola.
 6. Actualizar el mensaje de "Enlace no soportado" en `findResolver`.
-
-Pendiente de decidir: cómo obtener metadatos de Spotify (API oficial con credenciales de cliente vs. scraping de la página embebida).
 
 ## Notas de seguridad
 

@@ -85,7 +85,7 @@ export default function App() {
               </span>
             </h1>
             <p className="mx-auto mt-3 max-w-md text-base text-slate-600 dark:text-slate-300">
-              Descarga canciones y playlists de YouTube, o canciones y álbumes de Spotify, como audio MP3 o M4A. Gratis y sin registro.
+              Descarga canciones y playlists de YouTube y YouTube Music como audio MP3 o M4A. Gratis y sin registro.
             </p>
           </div>
         )}

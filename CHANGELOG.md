@@ -11,11 +11,14 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 - `scripts/install-tunnel-service.ps1`: instala `cloudflared` como servicio de Windows con inicio automático (requiere administrador).
 - `scripts/status.ps1` (estado de tarea, procesos, API, túnel y acceso público) y `scripts/stop-backend.ps1` (detención completa).
 
+### Eliminado
+- **Soporte de Spotify**: tunedrop vuelve a ser solo YouTube y YouTube Music. Se quitan el resolver de Spotify, el emparejamiento en YouTube, el etiquetado con datos de Spotify, la descarga de portadas, las variables `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET`, el origen `i.scdn.co` de la CSP y el campo `album`. El motivo: desde 2026 la API de Spotify no permite leer playlists con credenciales de aplicación (exige que cada usuario inicie sesión y limita las apps nuevas a muy pocos usuarios), y mantener el resto (búsqueda, coincidencias, etiquetas) daba demasiados problemas. Los metadatos y la portada de YouTube se incrustan siempre. Las bases de datos existentes siguen funcionando: la columna `album` queda sin usar.
+
 ### Pendiente
 - Instalar el servicio del túnel (`install-tunnel-service.ps1`) con permisos de administrador y desactivar la suspensión del PC.
 - Límite de peticiones por IP, Cloudflare Turnstile, tope de cola y cuota de disco (ver `docs/security.md`).
 - Procesar varias canciones de una playlist a la vez (hoy son unos 19 s por canción).
-- Probar un álbum de Spotify de varias canciones y limpiar artista y título de videos subidos por canales (p. ej. «… Official YouTube», «(Music Video)»).
+- Limpiar artista y título de videos subidos por canales (p. ej. «… Official YouTube», «(Music Video)»).
 - Decisión legal y host siempre encendido antes de abrirlo al público.
 
 ## [0.1.0] - 2026-10-08

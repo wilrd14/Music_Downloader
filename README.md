@@ -4,7 +4,7 @@
 
 <br>
 
-**Descarga canciones y playlists de YouTube, YouTube Music y Spotify como audio MP3 o M4A, directo desde el navegador.**
+**Descarga canciones y playlists de YouTube y YouTube Music como audio MP3 o M4A, directo desde el navegador.**
 
 <br>
 
@@ -15,7 +15,7 @@
 [![Fastify](https://img.shields.io/badge/Fastify-5-000000?style=for-the-badge&logo=fastify&logoColor=white)](https://fastify.dev)
 [![Cloudflare](https://img.shields.io/badge/Cloudflare-Tunnel%20%2B%20Access-F38020?style=for-the-badge&logo=cloudflare&logoColor=white)](docs/deployment-cloudflare.md)
 
-[![Tests](https://img.shields.io/badge/tests-86%20pasando-22c55e?style=flat-square)](#-pruebas)
+[![Tests](https://img.shields.io/badge/tests-44%20pasando-22c55e?style=flat-square)](#-pruebas)
 [![Estado](https://img.shields.io/badge/estado-pruebas%20privadas-a855f7?style=flat-square)](docs/phases.md)
 [![Licencia](https://img.shields.io/badge/licencia-GPL--3.0-blue?style=flat-square)](LICENSE)
 
@@ -37,7 +37,7 @@
 | 🔗 **Un enlace, un clic** | Pegas el link, ves una vista previa con portada y pistas, y descargas. Sin cuentas ni registro. |
 | 🎵 **Canciones y playlists** | Una canción llega como archivo suelto; una playlist, como un **ZIP** con las pistas numeradas. |
 | ☑️ **Tú eliges** | Marca solo las canciones que quieras de una playlist (hasta 100 por descarga). |
-| 🎚️ **MP3 o M4A** | MP3 a 320 kbps o M4A, con **título, artista, álbum y portada** incrustados. |
+| 🎚️ **MP3 o M4A** | MP3 a 320 kbps o M4A, con **título, artista y portada** incrustados. |
 | 📡 **Progreso en vivo** | Barra por canción y total, actualizada en tiempo real (SSE), y puedes cerrar la pestaña y volver. |
 | 🌗 **Interfaz moderna** | Tema claro y oscuro, responsive hasta 375 px, accesible y en español. |
 | 🧹 **Nada se queda guardado** | Los archivos se borran solos a los 30 minutos. |
@@ -45,15 +45,10 @@
 
 ### Fuentes soportadas
 
-| Fuente | Canción | Playlist / álbum |
+| Fuente | Canción | Playlist |
 |---|:---:|:---:|
 | **YouTube** | ✅ | ✅ |
 | **YouTube Music** | ✅ | ✅ |
-| **Spotify** | ✅ | ⚠️ álbumes sí · playlists no |
-
-> [!NOTE]
-> **Spotify no permite descargar su audio.** tunedrop lee los metadatos de la canción (título, artista, álbum, portada, duración), busca la versión que mejor coincide en YouTube y la etiqueta con los datos de Spotify.
-> Las **playlists de Spotify no se pueden leer**: desde 2026 su API exige que cada usuario inicie sesión para ver las canciones de una lista, y las apps nuevas quedan limitadas a muy pocos usuarios. Las canciones sueltas y los álbumes sí funcionan.
 
 ---
 
@@ -65,8 +60,7 @@ flowchart LR
     CF --> API[⚙️ API · Fastify]
     API <-->|cola| DB[(🗄️ SQLite)]
     DB <--> W[🛠️ Worker]
-    W -->|YouTube| YT[yt-dlp]
-    W -->|Spotify| SP[API de metadatos] --> M[🎯 Emparejar en YouTube] --> YT
+    W -->|YouTube / YouTube Music| YT[yt-dlp]
     YT --> FF[🎛️ ffmpeg<br/>conversión + etiquetas]
     FF --> F[(📁 Archivos temporales)]
     API -.->|archivo o ZIP| U
@@ -114,18 +108,6 @@ npm run dev
 
 Abre **<http://localhost:5173>** y pega un enlace. 🎉
 
-### Para usar Spotify
-
-Crea una app en el [panel de desarrolladores de Spotify](https://developer.spotify.com/dashboard) (Web API) y pon sus credenciales en `backend/.env`:
-
-```ini
-SPOTIFY_CLIENT_ID=tu_client_id
-SPOTIFY_CLIENT_SECRET=tu_client_secret
-```
-
-> [!WARNING]
-> El `client secret` va **solo** en `backend/.env`, que git ignora. Nunca lo pongas en `.env.example` ni lo subas al repositorio.
-
 ### Una sola URL (modo producción)
 
 El backend también puede servir la interfaz compilada, en el mismo origen que la API:
@@ -158,7 +140,6 @@ Más detalle (y cómo detenerlo) en [`docs/deployment-cloudflare.md`](docs/deplo
 | `JOB_TTL_MINUTES` | `30` | Minutos que se conserva un trabajo terminado antes de borrar sus archivos. |
 | `TRACK_TIMEOUT_MINUTES` | `10` | Tiempo máximo por pista (descarga + conversión). |
 | `WORKER_CONCURRENCY` | `2` | Trabajos que el worker procesa en paralelo. |
-| `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` | — | Credenciales de la API de Spotify (solo lectura de metadatos). |
 | `CORS_ORIGIN` | — | Origen permitido por CORS; solo si el frontend vive en otro dominio. |
 | `DATA_DIR` | `backend/data` | Base SQLite (`tunedrop.db`) y archivos temporales (`jobs/`). |
 | `YT_DLP_PATH` | `yt-dlp` | Ruta a yt-dlp si no está en el PATH (`.exe`, no `.cmd`). |
@@ -179,7 +160,7 @@ Music_Downloader/
 │       ├── api/             Servidor HTTP (/api/*) y entrega de la interfaz
 │       ├── worker/          Procesa la cola y limpia archivos expirados
 │       ├── core/            Configuración, cola SQLite, tipos, utilidades
-│       └── resolvers/       youtube · spotify · match (emparejar) · tagger (etiquetas)
+│       └── resolvers/       youtube (yt-dlp) y utilidades de procesos
 ├── frontend/                React + Vite + Tailwind
 ├── docs/                    Arquitectura, despliegue, seguridad y fases
 └── scripts/                 PowerShell: arranque, supervisor, estado, instalación de servicios
@@ -191,7 +172,7 @@ Music_Downloader/
 
 ```powershell
 cd backend
-npm test            # 86 pruebas (node:test)
+npm test            # 44 pruebas (node:test)
 npm run typecheck
 
 cd ..\frontend
@@ -199,7 +180,7 @@ npm run typecheck
 npm run build
 ```
 
-Las pruebas no necesitan red ni los binarios de descarga, salvo las de integración de etiquetado, que usan ffmpeg si está disponible.
+Las pruebas no necesitan red ni los binarios de descarga.
 
 ---
 
@@ -211,7 +192,6 @@ Diseñado siguiendo las [recomendaciones de MDN sobre seguridad web](https://dev
 - 🔑 Los `POST` solo se aceptan como JSON, y los identificadores de descarga son **UUID**.
 - 📂 Solo se sirven archivos dentro de la carpeta de trabajos; los nombres se sanean.
 - ⌨️ `yt-dlp` y `ffmpeg` se ejecutan **sin shell** y con las URLs detrás de `--`.
-- 🖼️ Las portadas solo se descargan de hosts permitidos, sin seguir redirecciones.
 - ⏱️ Límites de cuerpo, de tiempo por pista y de canciones por descarga.
 - 🔐 En las pruebas privadas, **Cloudflare Access** deja entrar solo a correos autorizados.
 
@@ -224,7 +204,7 @@ Estado y checklist previa al lanzamiento público: [`docs/security.md`](docs/sec
 | Fase | Contenido | Estado |
 |---|---|:---:|
 | **1** | YouTube: canción y playlist → archivo o ZIP, interfaz web | ✅ |
-| **2** | Spotify (canciones y álbumes), etiquetas y portada, seguridad base | ✅ |
+| **2** | Etiquetas y portada incrustadas, seguridad base | ✅ |
 | **3** | Despliegue privado: Cloudflare Tunnel + Access en `tunedrop.wilrd14.dev` | ✅ |
 | **4** | Arranque automático ✅ · límites por IP · Turnstile 🚧 | 🚧 |
 | **5** | Apertura pública: decisión legal, host siempre encendido, monitoreo | ⏳ |
@@ -246,9 +226,9 @@ Detalle en [`docs/phases.md`](docs/phases.md) · Historial en [`CHANGELOG.md`](C
 
 ## ⚖️ Aviso legal
 
-tunedrop es una herramienta para **uso personal** y para contenido que tienes derecho a descargar: tus propias obras, contenido con licencia libre o dominio público, o con permiso del titular. Descargar material protegido por derechos de autor sin autorización puede infringir la ley y los términos de servicio de YouTube, Spotify y otras plataformas.
+tunedrop es una herramienta para **uso personal** y para contenido que tienes derecho a descargar: tus propias obras, contenido con licencia libre o dominio público, o con permiso del titular. Descargar material protegido por derechos de autor sin autorización puede infringir la ley y los términos de servicio de YouTube y otras plataformas.
 
-**La responsabilidad del uso y de la operación de cualquier instancia desplegada recae en quien la opera y en quien la utiliza.** Los autores no se hacen responsables del uso indebido. Este proyecto no está afiliado a YouTube, Google ni Spotify.
+**La responsabilidad del uso y de la operación de cualquier instancia desplegada recae en quien la opera y en quien la utiliza.** Los autores no se hacen responsables del uso indebido. Este proyecto no está afiliado a YouTube ni a Google.
 
 ## 📄 Licencia
 

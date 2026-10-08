@@ -160,8 +160,10 @@ export function createYoutubeResolver(runCmd: CommandRunner = run): Resolver {
         '--audio-format',
         opts.format,
         ...(opts.format === 'mp3' ? ['--audio-quality', '320K'] : []),
-        // Con embed === false el audio queda sin etiquetas de YouTube (se etiqueta después).
-        ...(opts.embed === false ? [] : ['--embed-metadata', '--embed-thumbnail', '--convert-thumbnails', 'jpg']),
+        '--embed-metadata',
+        '--embed-thumbnail',
+        '--convert-thumbnails',
+        'jpg',
         '--no-playlist',
         '--newline',
         '--no-colors',

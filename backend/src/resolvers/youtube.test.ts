@@ -187,7 +187,7 @@ test('download: falla si no se produjo archivo o yt-dlp devuelve error', async (
   }
 });
 
-test('download: embed=false no pasa opciones de metadatos/miniatura de YouTube', async () => {
+test('download: siempre pasa las opciones de metadatos y miniatura', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tunedrop-yt-'));
   try {
     const seen: string[][] = [];
@@ -197,15 +197,9 @@ test('download: embed=false no pasa opciones de metadatos/miniatura de YouTube',
       return { code: 0, stdout: '', stderr: '' };
     });
     const base = { outDir: dir, fileBase: 'x', format: 'mp3' as const, onProgress: () => {} };
-    await r.download(track, { ...base, embed: false });
     await r.download(track, base);
-    await r.download(track, { ...base, embed: true });
-    const [off, undef, on] = seen as [string[], string[], string[]];
     for (const flag of ['--embed-metadata', '--embed-thumbnail', '--convert-thumbnails'])
-      assert.ok(!off.includes(flag), flag);
-    for (const a of [undef, on])
-      for (const flag of ['--embed-metadata', '--embed-thumbnail', '--convert-thumbnails'])
-        assert.ok(a.includes(flag), flag);
+      assert.ok(seen[0]!.includes(flag), flag);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
