@@ -19,6 +19,18 @@ const log = (...args: unknown[]) => console.log(new Date().toISOString(), '[work
 
 let running = 0;
 
+/** Reintenta una vez: la mayoría de fallos sueltos son cortes de red momentáneos. */
+async function withRetry<T>(fn: () => Promise<T>, retries = 1, delayMs = 2000): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt >= retries) throw err;
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+}
+
 async function processJob(job: JobRow): Promise<void> {
   log(`job ${job.id} iniciado (${job.title})`);
   const resolver = getResolver(job.provider);
@@ -39,7 +51,8 @@ async function processJob(job: JobRow): Promise<void> {
 
     let lastWrite = 0;
     try {
-      const file = await resolver.download(
+      const file = await withRetry(() =>
+        resolver.download(
         {
           id: row.track_id,
           title: row.title,
@@ -63,6 +76,7 @@ async function processJob(job: JobRow): Promise<void> {
             });
           },
         },
+        ),
       );
       updateTrack(job.id, row.idx, { status: 'done', progress: 100, file_path: file });
       ok++;

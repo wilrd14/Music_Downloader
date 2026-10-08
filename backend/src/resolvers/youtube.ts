@@ -196,7 +196,12 @@ export function createYoutubeResolver(runCmd: CommandRunner = run): Resolver {
         },
       });
 
-      if (res.code !== 0) throw new UserError(friendlyError(res.stderr));
+      if (res.code !== 0) {
+        // El mensaje al usuario es genérico; el detalle real queda en el log del servidor.
+        const detail = res.stderr.trim().split(/\r?\n/).slice(-3).join(' | ');
+        console.error(`[yt-dlp] ${track.id} salió con código ${res.code}: ${detail}`);
+        throw new UserError(friendlyError(res.stderr));
+      }
       if (!fs.existsSync(finalPath)) throw new UserError('La conversión no produjo ningún archivo (¿falta ffmpeg?).');
       opts.onProgress(100, 'converting');
       return finalPath;
