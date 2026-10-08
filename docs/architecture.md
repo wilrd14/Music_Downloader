@@ -32,7 +32,7 @@
 
 1. `POST /api/resolve`: el resolver de la fuente (YouTube) obtiene metadatos con yt-dlp; el resultado se cachea 10 minutos en memoria.
 2. `POST /api/jobs`: se crea un trabajo `queued` con sus pistas en SQLite y se devuelve `{ id }`.
-3. El worker (sondea cada 1 s) reclama el trabajo de forma atómica, lo pasa a `running` y descarga cada pista a `data/jobs/<id>/tracks/`.
+3. El worker (sondea cada 1 s) reclama el trabajo de forma atómica, lo pasa a `running` y descarga las pistas a `data/jobs/<id>/tracks/`: hasta `TRACK_CONCURRENCY` (3) a la vez por trabajo y, sumando todos los trabajos, como máximo `MAX_PARALLEL_DOWNLOADS` (4) procesos yt-dlp+ffmpeg simultáneos (semáforo global en `worker/runner.ts`). Una pista que falla no detiene a las demás; el trabajo queda `done` si al menos una salió bien.
 4. El navegador sigue el avance con `GET /api/jobs/:id/events` (SSE).
 5. Al terminar, `GET /api/jobs/:id/download` entrega el archivo (una pista) o un ZIP generado al vuelo (playlist).
 6. Pasado `JOB_TTL_MINUTES`, el worker borra la carpeta del trabajo y lo marca `expired`.
@@ -62,6 +62,22 @@ Comprueba yt-dlp y ffmpeg (cacheado 30 s).
 { "ok": true, "ytDlp": "2026.09.01", "ffmpeg": true }
 ```
 
+### `GET /api/config`
+Datos públicos para la interfaz. Nunca incluye la clave secreta.
+```json
+{ "turnstileSiteKey": "0x4AAAA..." }   // null si Turnstile no está configurado
+```
+
+### Límites de peticiones (todas las rutas `/api/*`)
+Por IP real del cliente (`CF-Connecting-IP`, o la IP de la conexión si falta o no es válida). Al superarlos: `429` con `{ "error": "..." }` y cabecera `Retry-After` (segundos). Los archivos estáticos no cuentan.
+
+| Ruta | Por minuto (env) |
+|---|---|
+| `/api/*` en general | 120 (`RATE_LIMIT_GENERAL_PER_MIN`) |
+| `POST /api/resolve` | 20 (`RATE_LIMIT_RESOLVE_PER_MIN`) |
+| `POST /api/jobs` | 6 (`RATE_LIMIT_JOBS_PER_MIN`) |
+| `GET /api/jobs/:id/download` | 30 (`RATE_LIMIT_DOWNLOAD_PER_MIN`) |
+
 ### `POST /api/resolve`
 ```json
 // request
@@ -89,6 +105,11 @@ Errores: `400` (enlace vacío o no soportado), `503` (falta yt-dlp).
 { "id": "3b241101-e2bb-4255-8caf-4136c566a962" }
 ```
 Errores `400`: enlace vacío, formato no soportado, ninguna canción seleccionada, más de `MAX_TRACKS_PER_JOB`.
+
+Con `TURNSTILE_SECRET_KEY` configurada el cuerpo debe incluir `"turnstileToken"` (token de un solo uso del widget), que se valida contra `https://challenges.cloudflare.com/turnstile/v0/siteverify` (5 s de espera). Errores adicionales:
+- `400` falta el token; `403` token inválido, caducado o reutilizado («Verificación anti-bots fallida…»); `503` Cloudflare inalcanzable o clave mal configurada (falla cerrado).
+- `429` ya hay `MAX_QUEUED_JOBS` trabajos en cola, o la IP tiene `MAX_ACTIVE_JOBS_PER_IP` en cola o en curso (con `Retry-After`).
+- `503` `data/jobs` alcanzó `MAX_DISK_MB`.
 
 ### `GET /api/jobs/:id`
 ```json
@@ -120,8 +141,10 @@ jobs(
   thumbnail TEXT,
   status TEXT,                -- queued | running | done | failed | expired
   error TEXT,
-  created_at INTEGER, started_at INTEGER, finished_at INTEGER   -- epoch ms
-);                            -- índice idx_jobs_status(status, created_at)
+  created_at INTEGER, started_at INTEGER, finished_at INTEGER,  -- epoch ms
+  client_key TEXT             -- 16 hex de HMAC-SHA256(IP) con el secreto de <DATA_DIR>/ip-secret; NULL si no se conoce; nunca la IP
+);                            -- índices idx_jobs_status(status, created_at) e idx_jobs_client(client_key, status)
+-- El worker borra las filas done/failed/expired con más de 24 h (las pistas, en cascada).
 
 tracks(
   job_id TEXT REFERENCES jobs(id) ON DELETE CASCADE,
@@ -135,7 +158,7 @@ tracks(
 );
 ```
 
-## Añadir un nuevo Resolver (p. ej. Spotify)
+## Añadir un nuevo Resolver
 
 La interfaz está en `backend/src/core/types.ts`:
 
@@ -149,14 +172,12 @@ interface Resolver {
 ```
 
 Pasos:
-1. Crear `backend/src/resolvers/spotify.ts` que exporte un objeto `Resolver` con `name: 'spotify'`.
-2. `canHandle`: aceptar hosts `open.spotify.com` (track/album/playlist).
-3. `resolve`: obtener metadatos de Spotify y devolver `TrackInfo[]` con `artist`, `title`, `durationSec`. Como `download` recibe el `TrackInfo`, el campo `url` puede guardar una consulta o el enlace de Spotify.
-4. `download`: buscar en YouTube (p. ej. `ytsearch1:artista título`) reutilizando la lógica de `youtube.ts` y llamar a `onProgress`; devolver la ruta final. Verificar la duración para evitar coincidencias erróneas.
+1. Crear `backend/src/resolvers/<fuente>.ts` que exporte un objeto `Resolver` con su `name`.
+2. `canHandle`: aceptar solo los hosts de la fuente.
+3. `resolve`: obtener los metadatos y devolver `TrackInfo[]` con `artist`, `title`, `durationSec`.
+4. `download`: descargar el audio (reutilizando la lógica de `youtube.ts` si sirve), llamar a `onProgress` y devolver la ruta final.
 5. Registrarlo en el arreglo `resolvers` de `backend/src/resolvers/index.ts`. API y worker lo resuelven por `findResolver(url)` / `getResolver(name)`; no hay que tocar rutas ni la cola.
 6. Actualizar el mensaje de "Enlace no soportado" en `findResolver`.
-
-Pendiente de decidir: cómo obtener metadatos de Spotify (API oficial con credenciales de cliente vs. scraping de la página embebida).
 
 ## Notas de seguridad
 

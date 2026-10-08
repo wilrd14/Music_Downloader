@@ -3,6 +3,7 @@ import type { AudioFormat, ResolveResponse } from '../types';
 import { plural } from '../lib/format';
 import Thumb from './Thumb';
 import TrackRow from './TrackRow';
+import TurnstileWidget from './TurnstileWidget';
 import { AlertIcon, DownloadIcon, ListIcon, MusicIcon, Spinner, XIcon } from './icons';
 
 interface Props {
@@ -12,8 +13,11 @@ interface Props {
   submitting: boolean;
   error: string | null;
   onDismissError: () => void;
-  onConfirm: (trackIds: string[] | undefined) => void;
+  onConfirm: (trackIds: string[] | undefined, turnstileToken: string | null) => void;
   onCancel: () => void;
+  theme: 'light' | 'dark';
+  /** Cambia tras cada envío para que el anti-bots pida un token nuevo (son de un solo uso). */
+  captchaResetSignal: number;
 }
 
 const FORMATS: { value: AudioFormat; label: string; hint: string }[] = [
@@ -30,7 +34,12 @@ export default function SourcePreview({
   onDismissError,
   onConfirm,
   onCancel,
+  theme,
+  captchaResetSignal,
 }: Props) {
+  const [token, setToken] = useState<string | null>(null);
+  // Hasta saber si hay clave de Turnstile se asume que hace falta (el botón espera).
+  const [captchaRequired, setCaptchaRequired] = useState(true);
   const isPlaylist = source.kind === 'playlist';
   const limit = Math.max(1, source.maxTracksPerJob);
   const [selected, setSelected] = useState<Set<string>>(
@@ -55,7 +64,7 @@ export default function SourcePreview({
   const count = isPlaylist ? selected.size : 1;
   const atLimit = selected.size >= limit;
   const overLimitAvailable = isPlaylist && source.tracks.length > limit;
-  const canSubmit = !submitting && count > 0;
+  const canSubmit = !submitting && count > 0 && (!captchaRequired || token !== null);
 
   const orderedSelection = useMemo(
     () => source.tracks.filter((t) => selected.has(t.id)).map((t) => t.id),
@@ -164,6 +173,13 @@ export default function SourcePreview({
           </div>
         </fieldset>
 
+        <TurnstileWidget
+          theme={theme}
+          resetSignal={captchaResetSignal}
+          onToken={setToken}
+          onRequiredChange={setCaptchaRequired}
+        />
+
         {error && (
           <div
             role="alert"
@@ -194,7 +210,7 @@ export default function SourcePreview({
           <button
             type="button"
             disabled={!canSubmit}
-            onClick={() => onConfirm(isPlaylist ? orderedSelection : undefined)}
+            onClick={() => onConfirm(isPlaylist ? orderedSelection : undefined, token)}
             className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-6 font-semibold text-white shadow-lg shadow-violet-600/25 transition hover:from-violet-700 hover:to-fuchsia-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {submitting ? <Spinner /> : <DownloadIcon />}

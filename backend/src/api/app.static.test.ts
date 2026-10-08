@@ -31,7 +31,15 @@ test('sirve la interfaz en / con CSP de frontend y sin caché', async () => {
   const res = await app.inject('/');
   assert.equal(res.statusCode, 200);
   assert.match(res.body, /<title>tunedrop<\/title>/);
-  assert.match(String(res.headers['content-security-policy']), /script-src 'self'/);
+  const csp = String(res.headers['content-security-policy']);
+  assert.match(csp, /script-src 'self' https:\/\/challenges\.cloudflare\.com;/);
+  assert.match(csp, /frame-src https:\/\/challenges\.cloudflare\.com;/);
+  assert.doesNotMatch(csp, /unsafe-eval|script-src[^;]*unsafe-inline/);
+  assert.match(csp, /default-src 'self'/);
+  assert.match(csp, /connect-src 'self';/);
+  // Debe coincidir con la política de frontend/public/_headers (Cloudflare Pages).
+  const headersFile = fs.readFileSync(path.resolve(import.meta.dirname, '../../../frontend/public/_headers'), 'utf8');
+  assert.ok(headersFile.includes(`Content-Security-Policy: ${csp}`));
   assert.match(String(res.headers['content-security-policy']), /img-src [^;]*i\.ytimg\.com/);
   assert.equal(res.headers['x-frame-options'], 'DENY');
   assert.equal(res.headers['cache-control'], 'no-cache');
