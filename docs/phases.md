@@ -15,7 +15,8 @@
 ## Fase 2: Despliegue de pruebas
 - [x] El backend sirve la interfaz compilada en el mismo origen (probado)
 - [x] Cloudflare Tunnel creado (remoto, vía `cf`) y conectado al backend
-- [ ] Túnel y backend como servicios que arranquen con Windows
+- [x] Backend con arranque automático (tarea programada + supervisor que reinicia si se cae)
+- [ ] Túnel como servicio de Windows (`scripts/install-tunnel-service.ps1`, requiere administrador)
 - [ ] (Opcional, fase pública) Frontend en Cloudflare Pages
 - [ ] (Solo si se usa Pages) Variable `VITE_API_BASE` en el frontend y `CORS_ORIGIN` en el backend
 - [x] Cloudflare Access (solo tu correo) delante del dominio; comprobado que bloquea sin sesión
