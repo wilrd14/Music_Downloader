@@ -14,10 +14,11 @@
 
 ## Fase 2: Despliegue de pruebas
 - [x] El backend sirve la interfaz compilada en el mismo origen (probado)
-- [ ] Cloudflare Tunnel hacia el backend en el PC (servicio de Windows)
+- [x] Cloudflare Tunnel creado (remoto, vía `cf`) y conectado al backend
+- [ ] Túnel y backend como servicios que arranquen con Windows
 - [ ] (Opcional, fase pública) Frontend en Cloudflare Pages
 - [ ] (Solo si se usa Pages) Variable `VITE_API_BASE` en el frontend y `CORS_ORIGIN` en el backend
-- [ ] Cloudflare Access (lista de correos permitidos) durante las pruebas privadas
+- [x] Cloudflare Access (solo tu correo) delante del dominio; comprobado que bloquea sin sesión
 
 ## Fase 3: Spotify
 - [x] Resolver de Spotify para canciones y álbumes vía metadatos (probado con una canción real)

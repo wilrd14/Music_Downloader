@@ -92,3 +92,40 @@ Etiquetas exactas del panel pueden variar. La primera vez puede pedirte crear la
 ## Opción futura: interfaz en Cloudflare Pages (fase pública)
 
 Si más adelante quieres la interfaz siempre disponible aunque el PC esté apagado, puedes alojarla en Pages (`frontend/public/_headers` ya trae las cabeceras) y dejar la API en un hostname aparte (`tunedrop-api.wilrd14.dev`, de un solo nivel por el certificado gratuito **[no verificado]**). Eso requiere: `VITE_API_BASE` en el frontend (anteponerlo a `fetch`, `EventSource` y el enlace de descarga), `CORS_ORIGIN` en `backend/.env`, añadir el origen de la API a `connect-src` de la CSP, y retirar Access o resolver su interacción con CORS y `EventSource` **[no verificado]**. Pages en sí: Cloudflare impulsa migrar a Workers con static assets; revisa el estado actual **[no verificado]**.
+
+## Estado del despliegue (creado el 2026-10-08 con el CLI `cf`)
+
+Se creó con `cf` (Cloudflare CLI, ya autenticado) en lugar de los pasos manuales 3-6 de arriba. El túnel es de **configuración remota** (se administra en Cloudflare; no hay `config.yml` local) y se conecta con un token.
+
+| Recurso | Identificador |
+|---|---|
+| Zona | `wilrd14.dev` (`04574d891c025389259d33e5e117ce7a`) |
+| Aplicación de Access | `tunedrop (pruebas privadas)` — `60956997-eef3-4873-8068-6485701f0774`; política *Solo William*: permitir únicamente `williamsvillavizar204@gmail.com` |
+| Túnel | `tunedrop` — `ed55d03a-d41a-4474-9e80-6675fb5ce5d8`; ingreso `tunedrop.wilrd14.dev → http://127.0.0.1:8787` |
+| DNS | CNAME `tunedrop` → `<id-del-túnel>.cfargotunnel.com` (proxied) |
+
+El token del túnel es un secreto: no se guarda en el repositorio. Se obtiene con `cf tunnels token get <id-del-túnel>` y se pasa a `cloudflared` por la variable de entorno `TUNNEL_TOKEN`.
+
+### Arrancar (cada vez que quieras que esté disponible)
+
+```powershell
+# 1) backend (API + worker)
+.\scripts\start-backend.ps1 -Mode start
+
+# 2) túnel (en otra terminal)
+$env:TUNNEL_TOKEN = (cf tunnels token get ed55d03a-d41a-4474-9e80-6675fb5ce5d8)
+cloudflared tunnel --no-autoupdate run
+Remove-Item Env:\TUNNEL_TOKEN
+```
+
+### Verificado el 2026-10-08
+
+- Sin sesión, `/`, `/api/health` y `/api/jobs/<id>` redirigen (302) al inicio de sesión de Access del equipo de Zero Trust; no se ve nada de la app.
+- El túnel registra 3 conexiones y el backend responde en `127.0.0.1:8787`.
+- **No verificado:** el inicio de sesión completo con el código del correo y una descarga a través del dominio (requiere que tú inicies sesión).
+
+### Apagar o borrar
+
+- Apagar: cerrar los procesos `cloudflared` y `node`.
+- Quitar acceso público: `cf dns records delete` del CNAME `tunedrop`, o borrar la aplicación de Access.
+- Borrar todo: `cf tunnels delete ed55d03a-d41a-4474-9e80-6675fb5ce5d8` (tras detener `cloudflared`), el CNAME y la aplicación de Access.
