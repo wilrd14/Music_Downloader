@@ -18,6 +18,8 @@ export interface JobRow {
   created_at: number;
   started_at: number | null;
   finished_at: number | null;
+  /** Huella (HMAC truncado) de la IP del cliente; nunca la IP. */
+  client_key: string | null;
 }
 
 export interface TrackRow {
@@ -58,7 +60,8 @@ export function getDb(): DatabaseSync {
       error TEXT,
       created_at INTEGER NOT NULL,
       started_at INTEGER,
-      finished_at INTEGER
+      finished_at INTEGER,
+      client_key TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status, created_at);
     CREATE TABLE IF NOT EXISTS tracks (
@@ -81,6 +84,10 @@ export function getDb(): DatabaseSync {
   // Migración para bases creadas antes de existir la columna album.
   const cols = db.prepare('PRAGMA table_info(tracks)').all() as unknown as { name: string }[];
   if (!cols.some((c) => c.name === 'album')) db.exec('ALTER TABLE tracks ADD COLUMN album TEXT');
+  // Migración para bases creadas antes de existir la columna client_key.
+  const jobCols = db.prepare('PRAGMA table_info(jobs)').all() as unknown as { name: string }[];
+  if (!jobCols.some((c) => c.name === 'client_key')) db.exec('ALTER TABLE jobs ADD COLUMN client_key TEXT');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_jobs_client ON jobs(client_key, status)');
   return db;
 }
 
@@ -93,13 +100,15 @@ export interface NewJob {
   format: AudioFormat;
   thumbnail: string | null;
   tracks: TrackInfo[];
+  /** Huella de la IP del cliente (ver clientKey.ts); null si no se conoce. */
+  clientKey?: string | null;
 }
 
 export function createJob(job: NewJob): void {
   const d = getDb();
   const insertJob = d.prepare(
-    `INSERT INTO jobs (id, provider, source_url, title, kind, format, thumbnail, status, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', ?)`,
+    `INSERT INTO jobs (id, provider, source_url, title, kind, format, thumbnail, status, created_at, client_key)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)`,
   );
   const insertTrack = d.prepare(
     `INSERT INTO tracks (job_id, idx, track_id, title, artist, duration_sec, thumbnail, album, url, status)
@@ -107,7 +116,7 @@ export function createJob(job: NewJob): void {
   );
   d.exec('BEGIN');
   try {
-    insertJob.run(job.id, job.provider, job.sourceUrl, job.title, job.kind, job.format, job.thumbnail, Date.now());
+    insertJob.run(job.id, job.provider, job.sourceUrl, job.title, job.kind, job.format, job.thumbnail, Date.now(), job.clientKey ?? null);
     job.tracks.forEach((t, i) =>
       insertTrack.run(job.id, i, t.id, t.title, t.artist, t.durationSec, t.thumbnail, t.album ?? null, t.url),
     );
@@ -172,6 +181,34 @@ export function findExpiredJobIds(olderThanMs: number): string[] {
     .prepare(`SELECT id FROM jobs WHERE status IN ('done', 'failed') AND finished_at < ?`)
     .all(cutoff) as unknown as { id: string }[];
   return rows.map((r) => r.id);
+}
+
+/** Trabajos en cola (global). */
+export function countQueuedJobs(): number {
+  const row = getDb().prepare(`SELECT COUNT(*) AS n FROM jobs WHERE status = 'queued'`).get() as unknown as { n: number };
+  return row.n;
+}
+
+/** Trabajos en cola o ejecutándose de un cliente (por huella de IP). */
+export function countActiveJobsByClient(clientKey: string): number {
+  const row = getDb()
+    .prepare(`SELECT COUNT(*) AS n FROM jobs WHERE client_key = ? AND status IN ('queued', 'running')`)
+    .get(clientKey) as unknown as { n: number };
+  return row.n;
+}
+
+/**
+ * Borra las filas de trabajos terminados (done/failed/expired) con más de `olderThanMs`
+ * (las pistas se borran en cascada). Minimización de datos. Devuelve cuántos trabajos borró.
+ */
+export function purgeOldJobs(olderThanMs: number): number {
+  const cutoff = Date.now() - olderThanMs;
+  const res = getDb()
+    .prepare(
+      `DELETE FROM jobs WHERE status IN ('done', 'failed', 'expired') AND COALESCE(finished_at, created_at) < ?`,
+    )
+    .run(cutoff);
+  return Number(res.changes);
 }
 
 export function markExpired(id: string): void {

@@ -2,10 +2,20 @@ import type { AudioFormat, HealthState, JobState, ResolveResponse } from '../typ
 
 export class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  /** Segundos indicados por la cabecera Retry-After (429/503), si vino. */
+  retryAfterSec: number | null;
+  constructor(message: string, status: number, retryAfterSec: number | null = null) {
     super(message);
     this.status = status;
+    this.retryAfterSec = retryAfterSec;
   }
+}
+
+/** "30 segundos", "2 minutos"… para mensajes de espera. */
+export function waitText(sec: number): string {
+  if (sec < 90) return `${sec} ${sec === 1 ? 'segundo' : 'segundos'}`;
+  const min = Math.ceil(sec / 60);
+  return `${min} minutos`;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -29,7 +39,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       data && typeof data === 'object' && 'error' in data && typeof (data as { error: unknown }).error === 'string'
         ? (data as { error: string }).error
         : `Error inesperado del servidor (${res.status}).`;
-    throw new ApiError(msg, res.status);
+    const ra = Number(res.headers.get('Retry-After'));
+    const retryAfterSec = Number.isFinite(ra) && ra > 0 ? Math.ceil(ra) : null;
+    // 429: añade cuánto esperar (Retry-After). 403: el servidor ya explica la verificación anti-bots.
+    const text = res.status === 429 && retryAfterSec ? `${msg} Vuelve a intentarlo en ${waitText(retryAfterSec)}.` : msg;
+    throw new ApiError(text, res.status, retryAfterSec);
   }
   return data as T;
 }
@@ -39,10 +53,17 @@ export const getHealth = () => request<HealthState>('/api/health');
 export const resolveUrl = (url: string) =>
   request<ResolveResponse>('/api/resolve', { method: 'POST', body: JSON.stringify({ url }) });
 
-export const createJob = (url: string, format: AudioFormat, trackIds?: string[]) =>
+export const getConfig = () => request<{ turnstileSiteKey: string | null }>('/api/config');
+
+export const createJob = (url: string, format: AudioFormat, trackIds?: string[], turnstileToken?: string | null) =>
   request<{ id: string }>('/api/jobs', {
     method: 'POST',
-    body: JSON.stringify(trackIds ? { url, format, trackIds } : { url, format }),
+    body: JSON.stringify({
+      url,
+      format,
+      ...(trackIds ? { trackIds } : {}),
+      ...(turnstileToken ? { turnstileToken } : {}),
+    }),
   });
 
 export const getJob = (id: string) => request<JobState>(`/api/jobs/${encodeURIComponent(id)}`);

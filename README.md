@@ -163,6 +163,14 @@ Más detalle (y cómo detenerlo) en [`docs/deployment-cloudflare.md`](docs/deplo
 | `DATA_DIR` | `backend/data` | Base SQLite (`tunedrop.db`) y archivos temporales (`jobs/`). |
 | `YT_DLP_PATH` | `yt-dlp` | Ruta a yt-dlp si no está en el PATH (`.exe`, no `.cmd`). |
 | `FFMPEG_PATH` | — | Ruta a `ffmpeg.exe` o a la carpeta que lo contiene. |
+| `RATE_LIMIT_GENERAL_PER_MIN` | `120` | Peticiones por minuto y por IP a `/api/*`. |
+| `RATE_LIMIT_RESOLVE_PER_MIN` | `20` | Peticiones por minuto y por IP a `POST /api/resolve`. |
+| `RATE_LIMIT_JOBS_PER_MIN` | `6` | Peticiones por minuto y por IP a `POST /api/jobs`. |
+| `RATE_LIMIT_DOWNLOAD_PER_MIN` | `30` | Peticiones por minuto y por IP a `/api/jobs/:id/download`. |
+| `MAX_QUEUED_JOBS` | `30` | Máximo de trabajos en cola (global); al llenarse se responde 429. |
+| `MAX_ACTIVE_JOBS_PER_IP` | `2` | Máximo de trabajos en cola o en curso por IP; si se supera, 429. |
+| `MAX_DISK_MB` | `4096` | Tamaño máximo de `data/jobs`; al alcanzarlo no se aceptan trabajos nuevos (503). |
+| `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` | — | Cloudflare Turnstile (anti-bots). Con la clave secreta, `POST /api/jobs` exige el token; sin ella no se verifica (solo desarrollo). |
 
 </details>
 
@@ -191,7 +199,7 @@ Music_Downloader/
 
 ```powershell
 cd backend
-npm test            # 86 pruebas (node:test)
+npm test            # 114 pruebas (node:test)
 npm run typecheck
 
 cd ..\frontend
@@ -213,6 +221,8 @@ Diseñado siguiendo las [recomendaciones de MDN sobre seguridad web](https://dev
 - ⌨️ `yt-dlp` y `ffmpeg` se ejecutan **sin shell** y con las URLs detrás de `--`.
 - 🖼️ Las portadas solo se descargan de hosts permitidos, sin seguir redirecciones.
 - ⏱️ Límites de cuerpo, de tiempo por pista y de canciones por descarga.
+- 🚦 **Límites por IP** (se usa `CF-Connecting-IP` del túnel), topes de cola, de descargas simultáneas por IP y de disco.
+- 🤖 **Cloudflare Turnstile** en la creación de descargas; las IPs no se guardan (solo una huella con clave secreta) y las filas de trabajos antiguos se borran a las 24 h.
 - 🔐 En las pruebas privadas, **Cloudflare Access** deja entrar solo a correos autorizados.
 
 Estado y checklist previa al lanzamiento público: [`docs/security.md`](docs/security.md).

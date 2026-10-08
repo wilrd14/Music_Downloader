@@ -182,3 +182,70 @@ test('findExpiredJobIds / markExpired', () => {
   assert.equal(db.getTrackRows('e-old')[0]?.file_path, null);
   assert.ok(!db.findExpiredJobIds(30 * 60_000).includes('e-old'));
 });
+
+test('contadores de cola y de trabajos activos por cliente', () => {
+  const before = db.countQueuedJobs();
+  const mkKeyed = (id: string, key: string | null) =>
+    db.createJob({
+      id,
+      provider: 'youtube',
+      sourceUrl: 'https://x',
+      title: id,
+      kind: 'track',
+      format: 'mp3',
+      thumbnail: null,
+      tracks: mk(1),
+      clientKey: key,
+    });
+  mkKeyed('c-1', 'aaaaaaaaaaaaaaaa');
+  mkKeyed('c-2', 'aaaaaaaaaaaaaaaa');
+  mkKeyed('c-3', 'bbbbbbbbbbbbbbbb');
+  mkKeyed('c-4', null);
+  assert.equal(db.countQueuedJobs(), before + 4);
+  assert.equal(db.countActiveJobsByClient('aaaaaaaaaaaaaaaa'), 2);
+  assert.equal(db.getJobRow('c-1')?.client_key, 'aaaaaaaaaaaaaaaa');
+  assert.equal(db.getJobRow('c-4')?.client_key, null);
+
+  db.getDb().prepare(`UPDATE jobs SET status = 'running' WHERE id = 'c-1'`).run();
+  assert.equal(db.countActiveJobsByClient('aaaaaaaaaaaaaaaa'), 2); // running también cuenta
+  db.finishJob('c-1', 'done');
+  assert.equal(db.countActiveJobsByClient('aaaaaaaaaaaaaaaa'), 1);
+  db.finishJob('c-2', 'failed', 'x');
+  assert.equal(db.countActiveJobsByClient('aaaaaaaaaaaaaaaa'), 0);
+  assert.equal(db.countActiveJobsByClient('bbbbbbbbbbbbbbbb'), 1);
+});
+
+test('la tabla jobs tiene la columna client_key', () => {
+  const cols = db.getDb().prepare('PRAGMA table_info(jobs)').all() as unknown as { name: string }[];
+  assert.ok(cols.some((c) => c.name === 'client_key'));
+});
+
+test('purgeOldJobs borra solo terminados/expirados de más de 24 h (las pistas en cascada)', () => {
+  const day = 24 * 60 * 60_000;
+  const realNow = Date.now;
+  Date.now = () => realNow() - 25 * 60 * 60_000;
+  try {
+    newJob('p-done', 2);
+    db.finishJob('p-done', 'done');
+    newJob('p-failed', 1);
+    db.finishJob('p-failed', 'failed', 'x');
+    newJob('p-expired', 1);
+    db.finishJob('p-expired', 'done');
+    db.markExpired('p-expired');
+    newJob('p-queued-old', 1); // en cola desde hace 25 h: no es "terminado", se conserva
+  } finally {
+    Date.now = realNow;
+  }
+  newJob('p-recent', 1);
+  db.finishJob('p-recent', 'done');
+
+  assert.equal(db.purgeOldJobs(day), 3);
+  assert.equal(db.getJobRow('p-done'), null);
+  assert.equal(db.getJobRow('p-failed'), null);
+  assert.equal(db.getJobRow('p-expired'), null);
+  assert.equal(db.getTrackRows('p-done').length, 0);
+  assert.ok(db.getJobRow('p-queued-old'));
+  assert.ok(db.getJobRow('p-recent'));
+  assert.equal(db.getTrackRows('p-recent').length, 1);
+  assert.equal(db.purgeOldJobs(day), 0);
+});
