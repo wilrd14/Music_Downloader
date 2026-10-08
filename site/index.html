@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="es" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>tunedrop · Descarga tu música de YouTube en tu propio PC</title>
+  <meta name="description" content="tunedrop es una app gratuita y de código abierto para Windows que descarga audio de YouTube y YouTube Music (MP3 o M4A con título, artista y portada) directo a tu carpeta de Música.">
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#0b0720">
+  <link rel="canonical" href="https://tunedrop.wilrd14.dev/">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="tunedrop">
+  <meta property="og:locale" content="es_ES">
+  <meta property="og:title" content="tunedrop · Descarga tu música de YouTube en tu propio PC">
+  <meta property="og:description" content="App gratuita y de código abierto para Windows. Pega un enlace de YouTube o YouTube Music y guarda el audio en tu carpeta de Música.">
+  <meta property="og:url" content="https://tunedrop.wilrd14.dev/">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="tunedrop · Descarga tu música de YouTube en tu propio PC">
+  <meta name="twitter:description" content="App gratuita y de código abierto para Windows. Sin cuentas, sin servidores, sin telemetría.">
+
+  <script src="/theme-init.js"></script>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <a class="skip" href="#contenido">Saltar al contenido</a>
+
+  <header class="topbar">
+    <div class="wrap topbar-in">
+      <a class="brand" href="/" aria-label="tunedrop, inicio">
+        <svg class="brand-ico" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="url(#bg)"/><path d="M32 14v22m0 0-9-9m9 9 9-9M16 47h32" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>tunedrop</span>
+      </a>
+      <nav aria-label="Principal" class="nav">
+        <a href="#como-funciona">Cómo funciona</a>
+        <a href="#instalacion">Instalación</a>
+        <a href="#faq">Preguntas</a>
+      </nav>
+      <button type="button" class="theme-btn" id="theme-toggle" aria-pressed="false" aria-label="Cambiar a tema claro">
+        <svg class="ico-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg>
+        <svg class="ico-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <svg width="0" height="0" class="defs" aria-hidden="true" focusable="false">
+    <defs>
+      <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8b5cf6"/><stop offset="1" stop-color="#d946ef"/></linearGradient>
+    </defs>
+  </svg>
+
+  <main id="contenido">
+    <section class="hero">
+      <div class="wrap hero-in">
+        <p class="badge"><span class="dot" aria-hidden="true"></span> Gratis · Código abierto · Sin cuentas</p>
+        <h1>Descarga tu música de YouTube <span class="grad">en tu propio PC</span></h1>
+        <p class="lead">tunedrop es una app que se ejecuta en tu ordenador. Pegas el enlace de un video o playlist de YouTube o YouTube Music y las canciones se guardan en tu carpeta de Música, con título, artista y portada.</p>
+
+        <div class="cta">
+          <a class="btn btn-primary" id="dl-btn" href="https://github.com/wilrd14/Music_Downloader/releases/latest/download/tunedrop-windows-x64.zip">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M5 20h14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Descargar para Windows
+          </a>
+          <a class="btn btn-ghost" href="https://github.com/wilrd14/Music_Downloader">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .5a11.5 11.5 0 0 0-3.6 22.4c.6.1.8-.3.8-.6v-2c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.4 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.300-5.300-5.700 0-1.300.5-2.300 1.200-3.100-.1-.3-.5-1.500.1-3.100 0 0 1-.3 3.200 1.200a11 11 0 0 1 5.800 0c2.200-1.500 3.200-1.200 3.200-1.200.6 1.600.2 2.800.1 3.100.8.800 1.200 1.800 1.200 3.100 0 4.400-2.700 5.400-5.300 5.700.4.400.8 1.100.8 2.200v3.200c0 .3.2.7.8.6A11.500 11.500 0 0 0 12 .5z"/></svg>
+            Ver el código en GitHub
+          </a>
+        </div>
+        <p class="small muted" id="release-note">Si el enlace aún no funciona, la primera versión está en preparación. Mientras tanto puedes mirar la <a href="https://github.com/wilrd14/Music_Downloader/releases/latest">página de versiones</a>.</p>
+
+        <div class="notice notice-pc" role="note">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 20h8M12 16v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <p><strong>Solo para PC.</strong> Windows ahora; macOS y Linux próximamente. <strong>No funciona en móviles ni tablets.</strong></p>
+        </div>
+        <div class="notice notice-os" id="platform-note" role="status" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7v6M12 16.500v.5" stroke="currentColor" stroke-width="2.400" stroke-linecap="round"/></svg>
+          <p id="platform-text"></p>
+        </div>
+      </div>
+    </section>
+
+    <section id="como-funciona" class="sec">
+      <div class="wrap">
+        <h2>Cómo funciona</h2>
+        <ol class="steps3">
+          <li class="card">
+            <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 20h8M12 16v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+            <h3><span class="n">1</span> Descargas y abres la app</h3>
+            <p>Bajas un zip, lo extraes y abres tunedrop en tu PC. No hay nada que registrar.</p>
+          </li>
+          <li class="card">
+            <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.700 0l3-3a4 4 0 0 0-5.700-5.700l-1 1M14 10a4 4 0 0 0-5.700 0l-3 3a4 4 0 0 0 5.700 5.700l1-1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <h3><span class="n">2</span> Pegas el enlace</h3>
+            <p>Copia el enlace de un video o playlist de YouTube o YouTube Music y pégalo en la app.</p>
+          </li>
+          <li class="card">
+            <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></span>
+            <h3><span class="n">3</span> Se guardan en tu Música</h3>
+            <p>Las canciones quedan en tu carpeta de Música, en MP3 o M4A con título, artista y portada.</p>
+          </li>
+        </ol>
+        <div class="why card">
+          <h3>¿Por qué se ejecuta en tu PC y no en una web?</h3>
+          <p>YouTube bloquea las peticiones que llegan desde servidores, así que un servicio web de descargas termina fallando. Al correr en tu PC, tus descargas salen desde tu propia conexión, y no hay un servidor que guarde nada ni que dependa de nadie.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="instalacion" class="sec sec-alt">
+      <div class="wrap">
+        <h2>Instalación paso a paso</h2>
+        <p class="muted sec-sub">Tarda unos minutos. No necesitas instalar nada más: la app trae lo necesario.</p>
+        <ol class="install">
+          <li>
+            <h3>Descarga el zip</h3>
+            <p>Descarga <code>tunedrop-windows-x64.zip</code> desde <a href="https://github.com/wilrd14/Music_Downloader/releases/latest/download/tunedrop-windows-x64.zip">este enlace directo</a>. Si falla, entra a la <a href="https://github.com/wilrd14/Music_Downloader/releases/latest">página de versiones</a>.</p>
+            <p class="small note">Si el enlace aún no funciona, la primera versión está en preparación.</p>
+          </li>
+          <li>
+            <h3>Extrae todo</h3>
+            <p>Clic derecho sobre el zip y elige <kbd>Extraer todo…</kbd>. No ejecutes nada desde dentro del zip: primero extráelo a una carpeta normal (por ejemplo, Documentos).</p>
+          </li>
+          <li>
+            <h3>Inicia la app</h3>
+            <p>Abre la carpeta extraída y haz doble clic en <code>Iniciar tunedrop.bat</code>. Se abrirá una ventana negra: es la app funcionando.</p>
+          </li>
+          <li>
+            <h3>Si Windows te avisa</h3>
+            <p>Windows SmartScreen o tu antivirus pueden avisar de que la app es de un "editor desconocido". Es normal: <strong>tunedrop no está firmada digitalmente</strong>, porque firmar cuesta dinero cada año y es un proyecto gratuito. Para continuar pulsa <kbd>Más información</kbd> y luego <kbd>Ejecutar de todas formas</kbd>.</p>
+            <p>Si quieres comprobar que el archivo es el original, abre PowerShell en la carpeta de la descarga y ejecuta:</p>
+            <div class="code">
+              <code id="hash-cmd">Get-FileHash .\tunedrop-windows-x64.zip -Algorithm SHA256</code>
+              <button type="button" class="copy" id="copy-hash" data-copy="#hash-cmd">Copiar</button>
+            </div>
+            <p>El resultado debe coincidir con el SHA-256 que aparece en la <a href="https://github.com/wilrd14/Music_Downloader/releases/latest">página de la versión</a>. Si no coincide, no lo ejecutes.</p>
+            <p class="visually-live" id="copy-status" role="status" aria-live="polite"></p>
+          </li>
+          <li>
+            <h3>Usa la app en el navegador</h3>
+            <p>Se abrirá tu navegador en <code>http://localhost:8787</code>. El número puede cambiar si está ocupado: mira la ventana negra para ver la dirección exacta. Pega un enlace y descarga. Por defecto se guarda en <code>Música\tunedrop</code>; puedes cambiarlo con el engranaje de la app.</p>
+          </li>
+          <li>
+            <h3>Para cerrar</h3>
+            <p>Cierra la ventana negra y listo. La app deja de funcionar hasta que vuelvas a abrirla.</p>
+          </li>
+        </ol>
+        <div class="card update">
+          <h3>Actualizaciones</h3>
+          <p>La app actualiza por su cuenta el componente que habla con YouTube (<code>yt-dlp</code>). Aun así, YouTube cambia a menudo: si las descargas dejan de funcionar, descarga la versión nueva de tunedrop desde la <a href="https://github.com/wilrd14/Music_Downloader/releases/latest">página de versiones</a>, extráela y úsala en lugar de la anterior.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="requisitos" class="sec">
+      <div class="wrap">
+        <h2>Requisitos</h2>
+        <ul class="reqs">
+          <li>Windows 10 u 11 de 64 bits</li>
+          <li>Unos 400 MB libres</li>
+          <li>Conexión a internet</li>
+          <li>Un navegador moderno (Chrome, Edge o Firefox)</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="faq" class="sec sec-alt">
+      <div class="wrap narrow">
+        <h2>Preguntas frecuentes</h2>
+        <div class="faq">
+          <details>
+            <summary>¿Por qué tengo que instalarlo?</summary>
+            <p>Porque YouTube bloquea los servidores. Si la descarga se hace desde tu PC, sale desde tu conexión de casa y funciona; además no hay ningún servidor que mantener ni que pueda caerse.</p>
+          </details>
+          <details>
+            <summary>¿Es seguro?</summary>
+            <p>El código es abierto (licencia GPL-3.0) y puedes revisarlo en GitHub. La app solo escucha en tu propio PC (<code>localhost</code>), no necesita cuentas y no envía telemetría.</p>
+          </details>
+          <details>
+            <summary>¿Cuesta algo?</summary>
+            <p>No, es gratis.</p>
+          </details>
+          <details>
+            <summary>¿Qué enlaces funcionan?</summary>
+            <p>Videos y playlists de YouTube y de YouTube Music. Spotify no está soportado.</p>
+          </details>
+          <details>
+            <summary>¿Funciona en móvil, Mac o Linux?</summary>
+            <p>En móviles y tablets no, y no está previsto. Por ahora solo hay versión para Windows; macOS y Linux llegarán próximamente.</p>
+          </details>
+          <details>
+            <summary>¿Dónde se guardan los archivos?</summary>
+            <p>En <code>Música\tunedrop</code> dentro de tu usuario de Windows. Puedes cambiar la carpeta desde el engranaje de la app.</p>
+          </details>
+          <details>
+            <summary>¿Cómo se actualiza?</summary>
+            <p>El componente <code>yt-dlp</code> se actualiza solo. Para tener la app nueva, descarga la última versión desde la <a href="https://github.com/wilrd14/Music_Downloader/releases/latest">página de versiones</a> y sustituye la carpeta anterior.</p>
+          </details>
+          <details>
+            <summary>¿Por qué Windows me avisa al abrirla?</summary>
+            <p>Porque la app no está firmada digitalmente (firmar cuesta dinero). Es el aviso habitual para programas poco comunes; mira el paso 4 de la instalación para continuar y verificar el archivo.</p>
+          </details>
+          <details>
+            <summary>¿Es legal?</summary>
+            <p>Depende de lo que descargues y de dónde vivas. Lee el <a href="#aviso-legal">aviso legal</a> más abajo.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <section id="aviso-legal" class="sec">
+      <div class="wrap narrow">
+        <h2>Aviso legal</h2>
+        <div class="card legal">
+          <p>tunedrop es una herramienta para uso personal y para contenido que tengas derecho a descargar: obras propias, material con licencia libre o de dominio público, o con permiso de su titular.</p>
+          <p>Descargar material protegido sin autorización puede infringir la ley y los términos de servicio de YouTube. La responsabilidad del uso es de quien ejecuta la app.</p>
+          <p>tunedrop es un proyecto independiente y no está afiliado a YouTube ni a Google. El código está en <a href="https://github.com/wilrd14/Music_Downloader">GitHub</a> bajo licencia <a href="https://github.com/wilrd14/Music_Downloader/blob/main/LICENSE">GPL-3.0</a>.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="wrap foot-in">
+      <p class="small">tunedrop · herramienta de uso personal. No afiliada a YouTube ni a Google. Úsala solo con contenido que tengas derecho a descargar.</p>
+      <nav aria-label="Enlaces del proyecto">
+        <a href="https://github.com/wilrd14/Music_Downloader">GitHub</a>
+        <a href="https://github.com/wilrd14/Music_Downloader/releases/latest">Releases</a>
+        <a href="https://github.com/wilrd14/Music_Downloader/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/wilrd14/Music_Downloader/blob/main/LICENSE">Licencia GPL-3.0</a>
+        <a href="#aviso-legal">Aviso legal</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>
