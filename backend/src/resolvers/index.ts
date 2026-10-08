@@ -2,15 +2,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { config, UserError, type HealthState, type Resolver } from '../core';
 import { run } from './proc';
-import { spotify } from './spotify';
 import { youtube } from './youtube';
 
 /** Para añadir una fuente nueva basta con implementar `Resolver` y registrarla aquí. */
-export const resolvers: Resolver[] = [youtube, spotify];
+export const resolvers: Resolver[] = [youtube];
 
 export function findResolver(url: string, list: Resolver[] = resolvers): Resolver {
   const resolver = list.find((r) => r.canHandle(url));
-  if (!resolver) throw new UserError('Enlace no soportado. Usa YouTube (video o playlist) o Spotify (canción, álbum o playlist).');
+  if (!resolver) throw new UserError('Enlace no soportado. Usa un enlace de YouTube o YouTube Music (video o playlist).');
   return resolver;
 }
 

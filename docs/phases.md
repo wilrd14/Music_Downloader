@@ -21,11 +21,8 @@
 - [ ] (Solo si se usa Pages) Variable `VITE_API_BASE` en el frontend y `CORS_ORIGIN` en el backend
 - [x] Cloudflare Access (solo tu correo) delante del dominio; comprobado que bloquea sin sesión
 
-## Fase 3: Spotify
-- [x] Resolver de Spotify para canciones y álbumes vía metadatos (probado con una canción real)
-- [ ] Playlists de Spotify: la API ya no deja leer sus canciones con credenciales de app (401/403 comprobado el 2026-10-08); requeriría inicio de sesión de cada usuario (límite ~25 usuarios en modo desarrollo)
-- [x] Búsqueda y emparejamiento en YouTube (validar duración) y etiquetado con datos y portada de Spotify
-- [ ] Mostrar al usuario las coincidencias dudosas
+## Fase 3: Otras fuentes (descartada)
+Se probó una fuente adicional y se retiró: su API ya no permite leer playlists con credenciales de aplicación. tunedrop se queda en YouTube y YouTube Music. Detalle en el [CHANGELOG](../CHANGELOG.md).
 
 ## Fase 4: Endurecimiento para uso público
 > La lista completa de requisitos de seguridad está en [security.md](security.md). No se abre al público sin completar su checklist.

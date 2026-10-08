@@ -9,8 +9,6 @@ export interface TrackInfo {
   durationSec: number | null;
   thumbnail: string | null;
   url: string;
-  /** Álbum (lo usa el etiquetado de pistas que vienen de Spotify). */
-  album?: string | null;
 }
 
 export interface ResolvedSource {
@@ -53,13 +51,11 @@ export interface DownloadOptions {
   /** Nombre del archivo sin extensión. */
   fileBase: string;
   format: AudioFormat;
-  /** Si es false no se incrustan metadatos ni portada (el llamador etiqueta después). Por defecto true. */
-  embed?: boolean;
   onProgress(percent: number, phase: 'downloading' | 'converting'): void;
   signal?: AbortSignal;
 }
 
-/** Cada fuente (YouTube, Spotify, ...) implementa esta interfaz. */
+/** Cada fuente (YouTube, YouTube Music, ...) implementa esta interfaz. */
 export interface Resolver {
   readonly name: string;
   canHandle(url: string): boolean;

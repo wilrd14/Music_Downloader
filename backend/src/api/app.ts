@@ -38,7 +38,7 @@ const FRONTEND_CSP = [
   "default-src 'self'",
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: https://i.ytimg.com https://i.scdn.co",
+  "img-src 'self' data: https://i.ytimg.com",
   "connect-src 'self'",
   "font-src 'self'",
   "object-src 'none'",

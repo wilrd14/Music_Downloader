@@ -28,7 +28,6 @@ export interface TrackRow {
   artist: string;
   duration_sec: number | null;
   thumbnail: string | null;
-  album: string | null;
   url: string;
   status: TrackStatus;
   progress: number;
@@ -69,7 +68,6 @@ export function getDb(): DatabaseSync {
       artist TEXT NOT NULL,
       duration_sec INTEGER,
       thumbnail TEXT,
-      album TEXT,
       url TEXT NOT NULL,
       status TEXT NOT NULL,
       progress REAL NOT NULL DEFAULT 0,
@@ -78,9 +76,6 @@ export function getDb(): DatabaseSync {
       PRIMARY KEY (job_id, idx)
     );
   `);
-  // Migración para bases creadas antes de existir la columna album.
-  const cols = db.prepare('PRAGMA table_info(tracks)').all() as unknown as { name: string }[];
-  if (!cols.some((c) => c.name === 'album')) db.exec('ALTER TABLE tracks ADD COLUMN album TEXT');
   return db;
 }
 
@@ -102,14 +97,14 @@ export function createJob(job: NewJob): void {
      VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', ?)`,
   );
   const insertTrack = d.prepare(
-    `INSERT INTO tracks (job_id, idx, track_id, title, artist, duration_sec, thumbnail, album, url, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued')`,
+    `INSERT INTO tracks (job_id, idx, track_id, title, artist, duration_sec, thumbnail, url, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued')`,
   );
   d.exec('BEGIN');
   try {
     insertJob.run(job.id, job.provider, job.sourceUrl, job.title, job.kind, job.format, job.thumbnail, Date.now());
     job.tracks.forEach((t, i) =>
-      insertTrack.run(job.id, i, t.id, t.title, t.artist, t.durationSec, t.thumbnail, t.album ?? null, t.url),
+      insertTrack.run(job.id, i, t.id, t.title, t.artist, t.durationSec, t.thumbnail, t.url),
     );
     d.exec('COMMIT');
   } catch (err) {

@@ -59,7 +59,6 @@ async function processJob(job: JobRow): Promise<void> {
           artist: row.artist,
           durationSec: row.duration_sec,
           thumbnail: row.thumbnail,
-          album: row.album,
           url: row.url,
         },
         {
