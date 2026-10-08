@@ -100,7 +100,7 @@ Se creó con `cf` (Cloudflare CLI, ya autenticado) en lugar de los pasos manuale
 | Recurso | Identificador |
 |---|---|
 | Zona | `wilrd14.dev` (`04574d891c025389259d33e5e117ce7a`) |
-| Aplicación de Access | `tunedrop (pruebas privadas)` — `60956997-eef3-4873-8068-6485701f0774`; política *Solo William*: permitir únicamente `williamsvillavizar204@gmail.com` |
+| Aplicación de Access | `tunedrop (pruebas privadas)` — `60956997-eef3-4873-8068-6485701f0774`; política *Solo William*: permitir únicamente `<tu-correo>` |
 | Túnel | `tunedrop` — `ed55d03a-d41a-4474-9e80-6675fb5ce5d8`; ingreso `tunedrop.wilrd14.dev → http://127.0.0.1:8787` |
 | DNS | CNAME `tunedrop` → `<id-del-túnel>.cfargotunnel.com` (proxied) |
 
