@@ -9,12 +9,16 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 ### Añadido
 - **Arranque automático del backend**: tarea programada `tunedrop-backend` (al iniciar sesión, sin administrador) con un supervisor sin ventana que reinicia la API y el worker si se caen, evita instancias duplicadas, limpia procesos huérfanos al arrancar y guarda logs con rotación en `backend/data/logs`.
 - `scripts/install-tunnel-service.ps1`: instala `cloudflared` como servicio de Windows con inicio automático (requiere administrador).
+- **Playlists más rápidas**: el worker descarga varias canciones de un trabajo a la vez (`TRACK_CONCURRENCY`, por defecto 3) con un tope global de descargas simultáneas entre todos los trabajos (`MAX_PARALLEL_DOWNLOADS`, por defecto 4). Con 6 canciones reales: 121 s en serie frente a 63 s con 3 en paralelo. Cada pista registra en el log su duración en ms.
 - `scripts/status.ps1` (estado de tarea, procesos, API, túnel y acceso público) y `scripts/stop-backend.ps1` (detención completa).
+
+### Cambiado
+- El procesamiento de un trabajo salió de `worker/index.ts` a `worker/runner.ts` (con pruebas sin red); el reintento único por pista, el timeout, los nombres numerados y el estado final del trabajo se mantienen.
 
 ### Pendiente
 - Instalar el servicio del túnel (`install-tunnel-service.ps1`) con permisos de administrador y desactivar la suspensión del PC.
 - Límite de peticiones por IP, Cloudflare Turnstile, tope de cola y cuota de disco (ver `docs/security.md`).
-- Procesar varias canciones de una playlist a la vez (hoy son unos 19 s por canción).
+- ~~Procesar varias canciones de una playlist a la vez~~ (hecho, ver «Añadido»). Cada canción sigue tardando unos 15-20 s por el arranque de `yt-dlp.exe` (≈5-10 s en esta máquina); usar una instalación de yt-dlp que no sea el .exe de un solo archivo (p. ej. `pip install yt-dlp`) podría recortarlo.
 - Probar un álbum de Spotify de varias canciones y limpiar artista y título de videos subidos por canales (p. ej. «… Official YouTube», «(Music Video)»).
 - Decisión legal y host siempre encendido antes de abrirlo al público.
 

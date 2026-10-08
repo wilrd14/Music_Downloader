@@ -158,6 +158,8 @@ Más detalle (y cómo detenerlo) en [`docs/deployment-cloudflare.md`](docs/deplo
 | `JOB_TTL_MINUTES` | `30` | Minutos que se conserva un trabajo terminado antes de borrar sus archivos. |
 | `TRACK_TIMEOUT_MINUTES` | `10` | Tiempo máximo por pista (descarga + conversión). |
 | `WORKER_CONCURRENCY` | `2` | Trabajos que el worker procesa en paralelo. |
+| `TRACK_CONCURRENCY` | `3` | Canciones de un mismo trabajo que se descargan a la vez (`1` = en serie). |
+| `MAX_PARALLEL_DOWNLOADS` | `4` | Tope global de descargas (yt-dlp + ffmpeg) simultáneas sumando todos los trabajos. Protege la CPU y evita que YouTube limite las peticiones. |
 | `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` | — | Credenciales de la API de Spotify (solo lectura de metadatos). |
 | `CORS_ORIGIN` | — | Origen permitido por CORS; solo si el frontend vive en otro dominio. |
 | `DATA_DIR` | `backend/data` | Base SQLite (`tunedrop.db`) y archivos temporales (`jobs/`). |

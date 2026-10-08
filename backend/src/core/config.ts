@@ -32,6 +32,12 @@ export const config = {
   trackTimeoutMs: num(process.env.TRACK_TIMEOUT_MINUTES, 10) * 60_000,
   bodyLimitBytes: 16 * 1024,
   workerConcurrency: num(process.env.WORKER_CONCURRENCY, 2),
+  // --- Paralelismo de pistas del worker ---
+  /** Pistas de un mismo trabajo que se descargan a la vez. */
+  trackConcurrency: Math.floor(num(process.env.TRACK_CONCURRENCY, 3)),
+  /** Tope global de descargas simultáneas (yt-dlp + ffmpeg) sumando todos los trabajos. */
+  maxParallelDownloads: Math.floor(num(process.env.MAX_PARALLEL_DOWNLOADS, 4)),
+  // --- Fin del bloque de paralelismo ---
   ytDlpPath: process.env.YT_DLP_PATH || 'yt-dlp',
   /** Carpeta o binario de ffmpeg; si no se define se usa el del PATH. */
   ffmpegPath: process.env.FFMPEG_PATH || null,
