@@ -32,7 +32,7 @@
 
 1. `POST /api/resolve`: el resolver de la fuente (YouTube) obtiene metadatos con yt-dlp; el resultado se cachea 10 minutos en memoria.
 2. `POST /api/jobs`: se crea un trabajo `queued` con sus pistas en SQLite y se devuelve `{ id }`.
-3. El worker (sondea cada 1 s) reclama el trabajo de forma atómica, lo pasa a `running` y descarga cada pista a `data/jobs/<id>/tracks/`.
+3. El worker (sondea cada 1 s) reclama el trabajo de forma atómica, lo pasa a `running` y descarga las pistas a `data/jobs/<id>/tracks/`: hasta `TRACK_CONCURRENCY` (3) a la vez por trabajo y, sumando todos los trabajos, como máximo `MAX_PARALLEL_DOWNLOADS` (4) procesos yt-dlp+ffmpeg simultáneos (semáforo global en `worker/runner.ts`). Una pista que falla no detiene a las demás; el trabajo queda `done` si al menos una salió bien.
 4. El navegador sigue el avance con `GET /api/jobs/:id/events` (SSE).
 5. Al terminar, `GET /api/jobs/:id/download` entrega el archivo (una pista) o un ZIP generado al vuelo (playlist).
 6. Pasado `JOB_TTL_MINUTES`, el worker borra la carpeta del trabajo y lo marca `expired`.

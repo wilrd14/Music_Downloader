@@ -16,7 +16,7 @@
 [![Cloudflare](https://img.shields.io/badge/Cloudflare-Tunnel%20%2B%20Access-F38020?style=for-the-badge&logo=cloudflare&logoColor=white)](docs/deployment-cloudflare.md)
 
 [![CI](https://github.com/wilrd14/Music_Downloader/actions/workflows/ci.yml/badge.svg)](https://github.com/wilrd14/Music_Downloader/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-44%20pasando-22c55e?style=flat-square)](#-pruebas)
+[![Tests](https://img.shields.io/badge/tests-85%20pasando-22c55e?style=flat-square)](#-pruebas)
 [![Estado](https://img.shields.io/badge/estado-pruebas%20privadas-a855f7?style=flat-square)](docs/phases.md)
 [![Licencia](https://img.shields.io/badge/licencia-GPL--3.0-blue?style=flat-square)](LICENSE)
 
@@ -141,6 +141,8 @@ Más detalle (y cómo detenerlo) en [`docs/deployment-cloudflare.md`](docs/deplo
 | `JOB_TTL_MINUTES` | `30` | Minutos que se conserva un trabajo terminado antes de borrar sus archivos. |
 | `TRACK_TIMEOUT_MINUTES` | `10` | Tiempo máximo por pista (descarga + conversión). |
 | `WORKER_CONCURRENCY` | `2` | Trabajos que el worker procesa en paralelo. |
+| `TRACK_CONCURRENCY` | `3` | Canciones de un mismo trabajo que se descargan a la vez (`1` = en serie). |
+| `MAX_PARALLEL_DOWNLOADS` | `4` | Tope global de descargas (yt-dlp + ffmpeg) simultáneas sumando todos los trabajos. Protege la CPU y evita que YouTube limite las peticiones. |
 | `CORS_ORIGIN` | — | Origen permitido por CORS; solo si el frontend vive en otro dominio. |
 | `DATA_DIR` | `backend/data` | Base SQLite (`tunedrop.db`) y archivos temporales (`jobs/`). |
 | `YT_DLP_PATH` | `yt-dlp` | Ruta a yt-dlp si no está en el PATH (`.exe`, no `.cmd`). |
@@ -181,7 +183,7 @@ Music_Downloader/
 
 ```powershell
 cd backend
-npm test            # 44 pruebas (node:test)
+npm test            # 85 pruebas (node:test)
 npm run typecheck
 
 cd ..\frontend

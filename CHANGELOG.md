@@ -10,6 +10,7 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 - **CI en GitHub Actions** (`.github/workflows/ci.yml`): en cada pull request y push a `main` ejecuta typecheck y tests del backend, typecheck y build del frontend, y una auditoría informativa de dependencias. Incluye Dependabot semanal y plantilla de pull request.
 - **Arranque automático del backend**: tarea programada `tunedrop-backend` (al iniciar sesión, sin administrador) con un supervisor sin ventana que reinicia la API y el worker si se caen, evita instancias duplicadas, limpia procesos huérfanos al arrancar y guarda logs con rotación en `backend/data/logs`.
 - `scripts/install-tunnel-service.ps1`: instala `cloudflared` como servicio de Windows con inicio automático (requiere administrador).
+- **Playlists más rápidas**: el worker descarga varias canciones de un trabajo a la vez (`TRACK_CONCURRENCY`, por defecto 3) con un tope global de descargas simultáneas entre todos los trabajos (`MAX_PARALLEL_DOWNLOADS`, por defecto 4). Con 6 canciones reales: 121 s en serie frente a 63 s con 3 en paralelo. Cada pista registra en el log su duración en ms.
 - `scripts/status.ps1` (estado de tarea, procesos, API, túnel y acceso público) y `scripts/stop-backend.ps1` (detención completa).
 - **Límites por IP** con `@fastify/rate-limit` usando la IP real de `CF-Connecting-IP` (120 peticiones/min a `/api/*`, 20 a `/api/resolve`, 6 a `POST /api/jobs`, 30 a las descargas); respuesta 429 en español con `Retry-After`.
 - **Topes**: `MAX_QUEUED_JOBS` (30), `MAX_ACTIVE_JOBS_PER_IP` (2) y `MAX_DISK_MB` (4096, 503 al llenarse). Nueva columna `jobs.client_key` (huella HMAC de la IP, nunca la IP) con migración segura.
@@ -19,10 +20,16 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 ### Eliminado
 - **Soporte de Spotify**: tunedrop vuelve a ser solo YouTube y YouTube Music. Se quitan el resolver de Spotify, el emparejamiento en YouTube, el etiquetado con datos de Spotify, la descarga de portadas, las variables `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET`, el origen `i.scdn.co` de la CSP y el campo `album`. El motivo: desde 2026 la API de Spotify no permite leer playlists con credenciales de aplicación (exige que cada usuario inicie sesión y limita las apps nuevas a muy pocos usuarios), y mantener el resto (búsqueda, coincidencias, etiquetas) daba demasiados problemas. Los metadatos y la portada de YouTube se incrustan siempre. Las bases de datos existentes siguen funcionando: la columna `album` queda sin usar.
 
+### Cambiado
+- El procesamiento de un trabajo salió de `worker/index.ts` a `worker/runner.ts` (con pruebas sin red); el reintento único por pista, el timeout, los nombres numerados y el estado final del trabajo se mantienen.
+
+### Corregido
+- Las pruebas ya no leen `backend/.env` (se detectan por `NODE_TEST_CONTEXT`), así que no dependen de la configuración real de la máquina (p. ej. las claves de Turnstile).
+- Las pruebas del worker escribían en la base de datos real (`backend/data`) por un `import` estático que cargaba la configuración antes de fijar `DATA_DIR`; ahora usan una carpeta temporal.
+
 ### Pendiente
 - Instalar el servicio del túnel (`install-tunnel-service.ps1`) con permisos de administrador y desactivar la suspensión del PC.
-- Crear el widget de Turnstile en el panel de Cloudflare y poner sus claves en `backend/.env` (ver `docs/security.md`).
-- Procesar varias canciones de una playlist a la vez (hoy son unos 19 s por canción).
+- Cada canción tarda unos 15-20 s sobre todo por el arranque de `yt-dlp.exe` (≈5-10 s en esta máquina); probar una instalación de yt-dlp que no sea el .exe de un solo archivo (p. ej. `pip install yt-dlp`) podría recortarlo.
 - Limpiar artista y título de videos subidos por canales (p. ej. «… Official YouTube», «(Music Video)»).
 - Decisión legal y host siempre encendido antes de abrirlo al público.
 
