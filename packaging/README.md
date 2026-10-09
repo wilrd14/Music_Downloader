@@ -68,7 +68,7 @@ Elecciones actuales:
 3. El workflow `.github/workflows/release.yml` (en `windows-latest`) construye el zip, ejecuta la prueba de humo con `-SkipDownload` (las IP de los runners están bloqueadas por YouTube, así que no hay descarga real en CI), sube los artefactos y crea la Release con `gh` y el `GITHUB_TOKEN` integrado (sin acciones de terceros ni otros secretos). Mientras la versión empiece por `0.` se marca como *pre-release*. También se puede lanzar a mano (`workflow_dispatch`) indicando la versión.
 4. Antes de anunciar, descarga el zip de la Release y repite `smoke-test.ps1` con descarga real en tu PC.
 
-La web enlaza a `releases/latest/download/tunedrop-windows-x64.zip`; GitHub no considera «latest» a las pre-releases, así que ese enlace solo funcionará cuando exista una Release estable (o marcando la 0.x como última a mano).
+La web enlaza a `releases/latest/download/tunedrop-windows-x64.zip`. GitHub ignora las pre-releases en ese enlace, por eso el workflow publica una Release normal (no `--prerelease`); la primera versión se anuncia como versión de pruebas en las notas.
 
 ## Qué NO está hecho
 

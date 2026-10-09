@@ -16,7 +16,7 @@
 [![Cloudflare](https://img.shields.io/badge/Cloudflare-Tunnel%20%2B%20Access-F38020?style=for-the-badge&logo=cloudflare&logoColor=white)](docs/deployment-cloudflare.md)
 
 [![CI](https://github.com/wilrd14/Music_Downloader/actions/workflows/ci.yml/badge.svg)](https://github.com/wilrd14/Music_Downloader/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-151%20pasando-22c55e?style=flat-square)](#-pruebas)
+[![Tests](https://img.shields.io/badge/tests-152%20pasando-22c55e?style=flat-square)](#-pruebas)
 [![Estado](https://img.shields.io/badge/estado-pruebas%20privadas-a855f7?style=flat-square)](docs/phases.md)
 [![Licencia](https://img.shields.io/badge/licencia-GPL--3.0-blue?style=flat-square)](LICENSE)
 
@@ -188,7 +188,7 @@ Music_Downloader/
 
 ```powershell
 cd backend
-npm test            # 151 pruebas (node:test)
+npm test            # 152 pruebas (node:test)
 npm run typecheck
 
 cd ..\frontend

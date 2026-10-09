@@ -32,6 +32,8 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 - El procesamiento de un trabajo salió de `worker/index.ts` a `worker/runner.ts` (con pruebas sin red); el reintento único por pista, el timeout, los nombres numerados y el estado final del trabajo se mantienen.
 
 ### Corregido
+- `/api/health` ya no conserva 30 s un resultado malo (solo 2 s): tras el primer arranque lento de `yt-dlp.exe` recién extraído la interfaz podía mostrar «falta yt-dlp» durante medio minuto.
+- La Release del zip se publica como Release normal (no pre-release) para que el enlace `releases/latest/download/…` de la web funcione; la web indica ahora «Unos 450 MB libres» (el paquete ocupa unos 423 MB extraído).
 - Las pruebas ya no leen `backend/.env` (se detectan por `NODE_TEST_CONTEXT`), así que no dependen de la configuración real de la máquina (p. ej. las claves de Turnstile).
 - Las pruebas del worker escribían en la base de datos real (`backend/data`) por un `import` estático que cargaba la configuración antes de fijar `DATA_DIR`; ahora usan una carpeta temporal.
 

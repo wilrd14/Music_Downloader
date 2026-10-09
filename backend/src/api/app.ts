@@ -197,9 +197,12 @@ export async function buildApp(options: AppOptions = {}) {
     return data;
   }
 
+  // Un resultado correcto se reutiliza 30 s; uno malo solo 2 s, para que un arranque lento (p. ej. el primer
+  // lanzamiento de yt-dlp.exe recién extraído) no deje a la interfaz mostrando «falta yt-dlp» medio minuto.
   let healthCache: { at: number; data: HealthState } | null = null;
   app.get('/api/health', async () => {
-    if (!healthCache || Date.now() - healthCache.at > 30_000) {
+    const ttl = healthCache?.data.ok ? 30_000 : 2_000;
+    if (!healthCache || Date.now() - healthCache.at > ttl) {
       healthCache = { at: Date.now(), data: await tools() };
     }
     return healthCache.data;
