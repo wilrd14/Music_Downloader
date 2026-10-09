@@ -120,10 +120,11 @@ Dos piezas, cada una con su script en `scripts/`:
 3. Consola del navegador sin errores de CSP ni de red.
 4. Cabeceras: `curl -I https://tunedrop.wilrd14.dev/` (con sesión) muestra `Content-Security-Policy` y `X-Frame-Options`.
 
-## Opción futura: interfaz en Cloudflare Pages (fase pública)
+## Web pública de presentación (`site/`)
 
-Si más adelante quieres la interfaz siempre disponible aunque el PC esté apagado, puedes alojarla en Pages (`frontend/public/_headers` ya trae las cabeceras) y dejar la API en un hostname aparte (`tunedrop-api.wilrd14.dev`, de un solo nivel por el certificado gratuito **[no verificado]**). Eso requiere: `VITE_API_BASE` en el frontend (anteponerlo a `fetch`, `EventSource` y el enlace de descarga), `CORS_ORIGIN` en `backend/.env`, añadir el origen de la API a `connect-src` de la CSP, y retirar Access o resolver su interacción con CORS y `EventSource` **[no verificado]**. Pages en sí: Cloudflare impulsa migrar a Workers con static assets; revisa el estado actual **[no verificado]**.
+La página que presenta e instala tunedrop (estática, sin servidor) está publicada en **https://tunedrop-local.wilrd14.dev** como Worker con assets; ver [`deploy/README.md`](../deploy/README.md). Es independiente de esta instancia privada: `tunedrop.wilrd14.dev` sigue siendo el backend en modo servidor detrás de Access.
 
+Cloudflare Pages clásico ya no se usa: Cloudflare lo está sustituyendo por Workers con assets (el CLI `cf` lo declara no soportado).
 ## Estado del despliegue (creado el 2026-10-08 con el CLI `cf`)
 
 Se creó con `cf` (Cloudflare CLI, ya autenticado) en lugar de los pasos manuales 3-6 de arriba. El túnel es de **configuración remota** (se administra en Cloudflare; no hay `config.yml` local) y se conecta con un token.

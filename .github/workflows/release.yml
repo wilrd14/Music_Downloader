@@ -91,7 +91,7 @@ jobs:
 
           Incluye Node.js, yt-dlp y FFmpeg (GPL); sus versiones, huellas y licencias están en la carpeta ``licenses`` del zip.
 
-          Más información en https://tunedrop.wilrd14.dev y en el [changelog](https://github.com/$env:GH_REPO/blob/main/CHANGELOG.md).
+          Más información en https://tunedrop-local.wilrd14.dev y en el [changelog](https://github.com/$env:GH_REPO/blob/main/CHANGELOG.md).
           "@
           Set-Content -Path release-notes.md -Value $notes -Encoding utf8
           $flags = @()
