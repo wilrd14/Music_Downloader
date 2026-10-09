@@ -1,37 +1,33 @@
-# tunedrop · página de presentación
+# Web de presentación e instalación
 
-Sitio estático (HTML + CSS + JS, sin frameworks, sin build y sin peticiones a
-terceros) que presenta tunedrop y explica cómo instalarlo en Windows.
+Sitio estático (HTML + CSS + un poco de JS, sin dependencias ni build) que presenta tunedrop y explica cómo instalarlo en Windows.
 
-## Archivos
+Publicado en **https://tunedrop-local.wilrd14.dev** como un Worker de Cloudflare con *assets* (la vía que sustituye a Cloudflare Pages clásico).
 
-- `index.html`, `styles.css`, `app.js`, `theme-init.js` — la página.
-- `404.html` — página de error amigable.
-- `_headers` — cabeceras de Cloudflare Pages (CSP estricta, caché, etc.).
-- `favicon.svg`, `robots.txt`.
-
-No hay scripts ni estilos en línea: la CSP solo permite recursos del propio
-dominio. Si añades algo, mantenlo en archivos propios.
-
-## Previsualizar en local
+## Vista previa local
 
 ```bash
 cd site
-python -m http.server 8080
-# o: npx serve .
+npx serve .          # o: python -m http.server 8080
 ```
 
-Abre http://localhost:8080. Ojo: estos servidores no aplican `_headers`; para
-probar la CSP usa un servidor que añada esas cabeceras.
+## Desplegar
 
-## Desplegar en Cloudflare Pages
+La configuración vive en [`../deploy`](../deploy) para no publicar archivos de configuración junto con la web:
 
-1. Cloudflare → Workers & Pages → Create → Pages → Connect to Git → repo
-   `wilrd14/Music_Downloader`.
-2. Configuración de build:
-   - Root directory: `site`
-   - Build command: (vacío)
-   - Build output directory: `/`
-3. Custom domains → `tunedrop.wilrd14.dev`.
+```bash
+cd deploy
+npm install
+npm run dry-run      # valida sin subir nada
+npm run deploy       # sube site/ y crea el dominio personalizado
+```
 
-Cada push a `main` que toque `site/` redespliega la página.
+Necesita una sesión de Cloudflare iniciada (`npx wrangler login`). El primer despliegue crea el registro DNS y el certificado del dominio; el nombre **no puede tener ya un registro CNAME**. Detalles en `deploy/README.md`.
+
+## Qué hay aquí
+
+- `index.html`, `styles.css`, `app.js`, `theme-init.js`: la página (sin scripts en línea, para poder usar una CSP estricta).
+- `_headers`: cabeceras de seguridad y de caché; Workers las aplica a los archivos estáticos (hasta 100 reglas).
+- `404.html`: página de error (`not_found_handling: "404-page"`).
+- `.assetsignore`: archivos que no se publican (este README).
+- `robots.txt`, `favicon.svg`.

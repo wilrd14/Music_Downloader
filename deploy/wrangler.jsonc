@@ -1,0 +1,16 @@
+{
+  // Web de presentación de tunedrop: archivos estáticos de ../site servidos como Worker con assets.
+  // (Cloudflare Pages clásico se está sustituyendo por Workers con assets; ver deploy/README.md.)
+  "name": "tunedrop-local",
+  "compatibility_date": "2026-10-09",
+  "assets": {
+    "directory": "../site",
+    "not_found_handling": "404-page"
+  },
+  // Dominio personalizado: Cloudflare crea el registro DNS y el certificado.
+  // OJO: no se puede usar un nombre que ya tenga un registro CNAME.
+  "routes": [{ "pattern": "tunedrop-local.wilrd14.dev", "custom_domain": true }],
+  // Solo se sirve por el dominio propio.
+  "workers_dev": false,
+  "preview_urls": false
+}
