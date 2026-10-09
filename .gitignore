@@ -5,3 +5,5 @@ data
 *.log
 .cloudflare
 .claude
+dist-release/
+packaging/windows/.cache/

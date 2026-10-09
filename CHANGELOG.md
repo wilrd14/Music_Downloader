@@ -7,6 +7,7 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 ## [Sin publicar]
 
 ### Añadido
+- **Empaquetado para Windows y Release automática** (`packaging/`, `.github/workflows/release.yml`): `packaging/windows/build.ps1` (Windows PowerShell 5.1 y PowerShell 7) produce `tunedrop-windows-x64.zip` con `Iniciar tunedrop.bat`, `LEEME.txt`, la app y su interfaz, `yt-dlp.exe`, `ffmpeg.exe`, `ffprobe.exe`, el `node.exe` oficial de Node 24 LTS y `licenses/` (GPL-3.0, licencias de terceros y `THIRD_PARTY_NOTICES.md` con versiones, SHA-256 y enlaces al código fuente), más `.sha256` y `SHA256SUMS.txt`. Los componentes están fijados en `versions.json` y se verifican contra las sumas oficiales de cada proveedor (fallo duro si no coinciden); `update-versions.ps1` los sube a propósito. `smoke-test.ps1` extrae el zip en una ruta con espacios y acentos, arranca la app sin yt-dlp/ffmpeg en el PATH, comprueba API, interfaz y protección de `Host`, y hace una descarga real con revisión de etiquetas y portada con `ffprobe`. El workflow se dispara con etiquetas `v*` (o a mano), construye, ejecuta la prueba sin descarga y crea la Release con `gh` (pre-release mientras la versión sea `0.x`). Medidas: zip ≈ 172-177 MB, ≈ 423 MB extraído. Sin firma de código.
 - **Página de presentación e instalación** (`site/`, estática, pensada para Cloudflare Pages): qué es tunedrop, cómo funciona, instalación paso a paso en Windows (incluido el aviso de SmartScreen y la verificación SHA-256), requisitos, preguntas frecuentes y aviso legal. Sin dependencias, sin peticiones a otros dominios, con CSP estricta (`site/_headers`). Verificada en escritorio y móvil (375 px), en claro y oscuro.
 - **Modo local (backend)**: nuevo `TUNEDROP_MODE` (`local` por defecto, `server` conserva el comportamiento anterior; **quien ya despliega como servicio debe fijar `TUNEDROP_MODE=server`**). En local no hay Turnstile, límites por IP, topes ni ZIP: los archivos se guardan directamente en la carpeta de música (ajuste guardado en `settings.json`, si no `DOWNLOAD_DIR`, si no `<home>/Music/tunedrop`), las playlists en una subcarpeta con su título y nunca se sobrescribe (` (1)`, ` (2)`...). Los archivos no se borran por TTL; solo se purgan filas antiguas de la base de datos. `JobState.savedTo`, `GET /api/config` con `mode` y `downloadDir`, `GET`/`PUT /api/settings` (validación de ruta documentada en `docs/security.md`) y `POST /api/open-folder` (sin shell, solo dentro de la carpeta de música).
 - **Un solo proceso**: `npm run start:local` arranca API y worker juntos (`startWorker()`), en el primer puerto libre desde `API_PORT` (hasta 10), solo en `127.0.0.1`, y abre el navegador (`TUNEDROP_NO_BROWSER=1` lo evita). En local los datos van a la carpeta de aplicación del sistema salvo que se defina `DATA_DIR`.
@@ -31,6 +32,8 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 - El procesamiento de un trabajo salió de `worker/index.ts` a `worker/runner.ts` (con pruebas sin red); el reintento único por pista, el timeout, los nombres numerados y el estado final del trabajo se mantienen.
 
 ### Corregido
+- `/api/health` ya no conserva 30 s un resultado malo (solo 2 s): tras el primer arranque lento de `yt-dlp.exe` recién extraído la interfaz podía mostrar «falta yt-dlp» durante medio minuto.
+- La Release del zip se publica como Release normal (no pre-release) para que el enlace `releases/latest/download/…` de la web funcione; la web indica ahora «Unos 450 MB libres» (el paquete ocupa unos 423 MB extraído).
 - Las pruebas ya no leen `backend/.env` (se detectan por `NODE_TEST_CONTEXT`), así que no dependen de la configuración real de la máquina (p. ej. las claves de Turnstile).
 - Las pruebas del worker escribían en la base de datos real (`backend/data`) por un `import` estático que cargaba la configuración antes de fijar `DATA_DIR`; ahora usan una carpeta temporal.
 
@@ -43,7 +46,7 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 - **Aviso al reiniciar con el código nuevo:** el modo por defecto pasa a ser `local`. Para conservar el despliegue privado actual hay que poner `TUNEDROP_MODE=server` en `backend/.env` antes de reiniciar el backend.
 
 ### Pendiente (orden sugerido)
-1. Empaquetado para Windows: zip con Node, la app, `yt-dlp` y `ffmpeg`, más `Iniciar tunedrop.bat`, avisos de licencia (GPL-3.0), sumas SHA-256 y un workflow de GitHub Actions que publique la Release (`tunedrop-windows-x64.zip`).
+1. Publicar la primera Release (etiqueta `v0.1.0`, el workflow ya está listo y falta ejecutarlo y probar el zip descargado).
 2. Publicar `site/` en Cloudflare Pages (root `site`, sin build). Antes hay que liberar el nombre `tunedrop.wilrd14.dev`, que hoy apunta al túnel con Access (retirar o mover ese túnel y su aplicación de Access).
 3. Reescribir el README con el enfoque local-first.
 4. Instalador `.exe` (Inno Setup), paquetes para macOS y Linux, y firma de código.
