@@ -62,13 +62,19 @@ Auditoría de seguridad (2026-10-09); detalle, evidencias y riesgos abiertos en 
 - **Modo local implementado y fusionado en la rama `feat/modo-local`** (backend e interfaz; 151 pruebas). Probado de punta a punta con el bundle `dist/tunedrop.mjs` + `web/`: arranca en un proceso, guarda en la carpeta elegida (playlist en subcarpeta, numeradas), 4 canciones en ~24 s, y responde 403 a `Host`/`Origin` ajenos. Falta empaquetarlo (zip) y publicarlo.
 - **Aviso al reiniciar con el código nuevo:** el modo por defecto pasa a ser `local`. Para conservar el despliegue privado actual hay que poner `TUNEDROP_MODE=server` en `backend/.env` antes de reiniciar el backend.
 
+- **Release v0.1.0 publicada (2026-10-09):** Release normal con `tunedrop-windows-x64.zip` (176,5 MB), su `.sha256` y `SHA256SUMS.txt`; el enlace `releases/latest/download/…` de la web funciona. Verificada con la huella y con la prueba de humo con descarga real sobre el zip descargado.
+- **Firma de código: se usará SignPath Foundation** (decisión tomada; gratis para código abierto). Solo se firmaría nuestro propio `.exe` (el instalador); firmar no elimina de golpe el aviso de SmartScreen (la reputación se acumula por archivo) ni los falsos positivos de antivirus de `yt-dlp.exe`.
+- **Auditoría de seguridad (2026-10-09):** sin hallazgos críticos ni altos; 12 correcciones con pruebas (178 pruebas). Detalle, riesgos aceptados y checklist en `docs/security.md` y `SECURITY.md`.
 ### Pendiente (orden sugerido)
-1. Publicar la primera Release (etiqueta `v0.1.0`, el workflow ya está listo y falta ejecutarlo y probar el zip descargado).
-2. Reescribir el README con el enfoque local-first.
-3. Instalador `.exe` (Inno Setup), paquetes para macOS y Linux, y firma de código.
-4. Programa de escritorio con ventana propia (Electron o Tauri), solo si hay demanda.
-5. Decidir qué hacer con el VPS (descartado para descargar) y con la instancia privada actual; tomar la decisión legal antes de promocionar el proyecto.
-6. Menores: limpiar artista y título de videos subidos por canales («… Official YouTube», «(Music Video)»); probar un `yt-dlp` que no sea el `.exe` de un solo archivo para acortar el arranque (≈5-10 s por canción); imagen para las vistas previas al compartir la web; verificar los avisos de macOS y Linux de la página.
+1. Reescribir el README con el enfoque local-first (aún habla del servidor y del túnel).
+2. **Instalador `.exe` (Inno Setup)** que instale todo lo necesario para funcionar sin instalar nada aparte (hoy el zip ya trae Node, `yt-dlp`, `ffmpeg` y `ffprobe`; el instalador añadiría acceso directo, desinstalador y actualización encima de la versión anterior): instalación por usuario en `%LOCALAPPDATA%Programs	unedrop` sin administrador, el desinstalador conserva la carpeta de Música y los ajustes, y construcción en el workflow de Release (comprobar si Inno Setup viene en `windows-latest`).
+3. **Firma con SignPath Foundation**, en este orden: (1) publicar el instalador sin firmar (SignPath exige una versión ya publicada en la forma que se va a firmar), (2) solicitar el proyecto en https://signpath.org y guardar su token como secreto del repositorio, (3) añadir la política de firma a la web (`site/`), el crédito a SignPath en el README y el paso de firma en `release.yml`, (4) la siguiente Release sale firmada.
+4. Acciones de seguridad que solo puede hacer el dueño en GitHub (checklist en `docs/security.md`): secret scanning y push protection, alertas y actualizaciones de seguridad de Dependabot, avisos privados de vulnerabilidades (el enlace de `SECURITY.md` los necesita), protección de la rama `main` con CI obligatoria y de las etiquetas `v*`, restringir Actions a acciones de GitHub y verificadas, y 2FA con llave de seguridad en GitHub y Cloudflare.
+5. Seguridad abierta de la auditoría: token por sesión en la API local para PC compartidos (A-01), atestación de procedencia del zip con `actions/attest-build-provenance` (A-03) y un entorno `release` con aprobación manual (A-04).
+6. Paquetes para macOS y Linux.
+7. Programa de escritorio con ventana propia (Electron o Tauri), solo si hay demanda.
+8. Decidir qué hacer con el VPS (descartado para descargar) y con la instancia privada actual; tomar la decisión legal antes de promocionar el proyecto.
+9. Menores: limpiar artista y título de videos subidos por canales («… Official YouTube», «(Music Video)»); probar un `yt-dlp` que no sea el `.exe` de un solo archivo para acortar el arranque (≈5-10 s por canción); imagen para las vistas previas al compartir la web; verificar los avisos de macOS y Linux de la página.
 
 ## [0.1.0] - 2026-10-08
 
