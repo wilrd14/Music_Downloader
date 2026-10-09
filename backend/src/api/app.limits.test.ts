@@ -7,6 +7,7 @@ import type { Limits, Resolver, TrackInfo } from '../core';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tunedrop-limits-'));
 process.env.DATA_DIR = tmp; // antes de importar config
+process.env.TUNEDROP_MODE = 'server'; // estas pruebas cubren el modo servidor (límites por IP, Turnstile...)
 const core = await import('../core');
 const { buildApp } = await import('./app');
 
@@ -213,10 +214,10 @@ const json = (data: unknown, status = 200) =>
 test('GET /api/config expone la clave pública y nunca la secreta', async () => {
   const on = await mkApp({ turnstileSecretKey: 'secret-xyz', turnstileSiteKey: 'site-abc' });
   const res = await on.inject('/api/config');
-  assert.deepEqual(res.json(), { turnstileSiteKey: 'site-abc' });
+  assert.deepEqual(res.json(), { mode: 'server', downloadDir: null, turnstileSiteKey: 'site-abc' });
   assert.ok(!res.body.includes('secret-xyz'));
   const off = await mkApp({ turnstileSecretKey: null, turnstileSiteKey: 'site-abc' });
-  assert.deepEqual((await off.inject('/api/config')).json(), { turnstileSiteKey: null });
+  assert.deepEqual((await off.inject('/api/config')).json(), { mode: 'server', downloadDir: null, turnstileSiteKey: null });
 });
 
 test('turnstile: sin clave secreta no se pide token', async () => {

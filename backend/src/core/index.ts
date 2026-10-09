@@ -5,3 +5,8 @@ export * from './files';
 export * from './db';
 export * from './clientKey';
 export * from './disk';
+export * from './settings';
+export * from './naming';
+export * from './locations';
+export { parseMode, defaultLocalDataDir, defaultMusicDir, findBinary } from './platform';
+export type { BinaryName, BinarySource, FindBinaryOptions, FoundBinary } from './platform';

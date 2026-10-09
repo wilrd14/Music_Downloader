@@ -12,6 +12,8 @@
     "dev": "concurrently -n api,worker -c blue,magenta \"npm run dev:api\" \"npm run dev:worker\"",
     "start:api": "tsx src/api/index.ts",
     "start:worker": "tsx src/worker/index.ts",
+    "start:local": "tsx src/local/index.ts",
+    "build": "node build.mjs",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test \"src/**/*.test.ts\""
   },
@@ -26,6 +28,7 @@
     "@types/archiver": "^8.0.0",
     "@types/node": "^26.6.4",
     "concurrently": "^10.0.6",
+    "esbuild": "^0.28.2",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }

@@ -4,7 +4,7 @@ import { plural } from '../lib/format';
 import Thumb from './Thumb';
 import TrackRow from './TrackRow';
 import TurnstileWidget from './TurnstileWidget';
-import { AlertIcon, DownloadIcon, ListIcon, MusicIcon, Spinner, XIcon } from './icons';
+import { AlertIcon, DownloadIcon, FolderIcon, ListIcon, MusicIcon, Spinner, XIcon } from './icons';
 
 interface Props {
   source: ResolveResponse;
@@ -18,6 +18,9 @@ interface Props {
   theme: 'light' | 'dark';
   /** Cambia tras cada envío para que el anti-bots pida un token nuevo (son de un solo uso). */
   captchaResetSignal: number;
+  /** Modo local: sin anti-bots; se muestra la carpeta donde se guardará. */
+  local?: boolean;
+  downloadDir?: string | null;
 }
 
 const FORMATS: { value: AudioFormat; label: string; hint: string }[] = [
@@ -36,10 +39,12 @@ export default function SourcePreview({
   onCancel,
   theme,
   captchaResetSignal,
+  local = false,
+  downloadDir = null,
 }: Props) {
   const [token, setToken] = useState<string | null>(null);
-  // Hasta saber si hay clave de Turnstile se asume que hace falta (el botón espera).
-  const [captchaRequired, setCaptchaRequired] = useState(true);
+  // Hasta saber si hay clave de Turnstile se asume que hace falta (el botón espera). En local nunca.
+  const [captchaRequired, setCaptchaRequired] = useState(!local);
   const isPlaylist = source.kind === 'playlist';
   const limit = Math.max(1, source.maxTracksPerJob);
   const [selected, setSelected] = useState<Set<string>>(
@@ -64,7 +69,7 @@ export default function SourcePreview({
   const count = isPlaylist ? selected.size : 1;
   const atLimit = selected.size >= limit;
   const overLimitAvailable = isPlaylist && source.tracks.length > limit;
-  const canSubmit = !submitting && count > 0 && (!captchaRequired || token !== null);
+  const canSubmit = !submitting && count > 0 && (local || !captchaRequired || token !== null);
 
   const orderedSelection = useMemo(
     () => source.tracks.filter((t) => selected.has(t.id)).map((t) => t.id),
@@ -173,12 +178,23 @@ export default function SourcePreview({
           </div>
         </fieldset>
 
-        <TurnstileWidget
-          theme={theme}
-          resetSignal={captchaResetSignal}
-          onToken={setToken}
-          onRequiredChange={setCaptchaRequired}
-        />
+        {local ? (
+          downloadDir && (
+            <p className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-400">
+              <FolderIcon className="mt-0.5 shrink-0" width={16} height={16} />
+              <span className="min-w-0">
+                Se guardará en <span className="break-all font-mono text-[0.8125rem]">{downloadDir}</span>
+              </span>
+            </p>
+          )
+        ) : (
+          <TurnstileWidget
+            theme={theme}
+            resetSignal={captchaResetSignal}
+            onToken={setToken}
+            onRequiredChange={setCaptchaRequired}
+          />
+        )}
 
         {error && (
           <div

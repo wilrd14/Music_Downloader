@@ -7,6 +7,7 @@ import type { Resolver, TrackInfo } from '../core';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tunedrop-api-'));
 process.env.DATA_DIR = tmp; // antes de importar config
+process.env.TUNEDROP_MODE = 'server'; // estas pruebas cubren el modo servidor
 const core = await import('../core');
 const { UserError } = core;
 const { buildApp } = await import('./app');

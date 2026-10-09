@@ -11,6 +11,8 @@ import UrlForm from './components/UrlForm';
 import SourcePreview from './components/SourcePreview';
 import JobProgress from './components/JobProgress';
 import Skeleton from './components/Skeleton';
+import SettingsDialog from './components/SettingsDialog';
+import { useConfig } from './hooks/useConfig';
 import { Spinner } from './components/icons';
 
 const msg = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : 'Ocurrió un error inesperado.');
@@ -19,6 +21,8 @@ export default function App() {
   const { theme, toggle } = useTheme();
   const health = useHealth();
   const { job, jobId, resuming, connectionError, start, reset } = useJob();
+  const { loaded, isLocal, downloadDir, setDownloadDir } = useConfig();
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [source, setSource] = useState<ResolveResponse | null>(null);
   const [sourceUrl, setSourceUrl] = useState('');
@@ -75,7 +79,7 @@ export default function App() {
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-96 bg-gradient-to-b from-violet-200/60 via-fuchsia-100/30 to-transparent dark:from-violet-900/30 dark:via-fuchsia-950/20"
       />
-      <Header theme={theme} onToggleTheme={toggle} />
+      <Header theme={theme} onToggleTheme={toggle} local={isLocal} onOpenSettings={() => setSettingsOpen(true)} />
       <HealthBanner status={health} />
 
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-8">
@@ -116,8 +120,10 @@ export default function App() {
           </div>
         )}
 
-        {showJob && job && <JobProgress job={job} onNew={handleNew} />}
-        {showJob && !job && !connectionError && <Skeleton label="Cargando descarga" />}
+        {showJob && job && loaded && (
+          <JobProgress job={job} onNew={handleNew} local={isLocal} downloadDir={downloadDir} />
+        )}
+        {showJob && (!job || !loaded) && !connectionError && <Skeleton label="Cargando descarga" />}
 
         {!showJob && !resuming && (
           <div className="space-y-6">
@@ -141,13 +147,23 @@ export default function App() {
                 onCancel={handleNew}
                 theme={theme}
                 captchaResetSignal={captchaReset}
+                local={isLocal}
+                downloadDir={downloadDir}
               />
             )}
           </div>
         )}
       </main>
 
-      <Footer />
+      <Footer local={isLocal} />
+      {isLocal && (
+        <SettingsDialog
+          open={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          downloadDir={downloadDir}
+          onSaved={setDownloadDir}
+        />
+      )}
     </div>
   );
 }

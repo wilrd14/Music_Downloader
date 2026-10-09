@@ -20,6 +20,8 @@ export interface JobRow {
   finished_at: number | null;
   /** Huella (HMAC truncado) de la IP del cliente; nunca la IP. */
   client_key: string | null;
+  /** Modo local: carpeta de destino de los archivos. */
+  saved_to: string | null;
 }
 
 export interface TrackRow {
@@ -82,6 +84,7 @@ export function getDb(): DatabaseSync {
   // Migración para bases creadas antes de existir la columna client_key.
   const jobCols = db.prepare('PRAGMA table_info(jobs)').all() as unknown as { name: string }[];
   if (!jobCols.some((c) => c.name === 'client_key')) db.exec('ALTER TABLE jobs ADD COLUMN client_key TEXT');
+  if (!jobCols.some((c) => c.name === 'saved_to')) db.exec('ALTER TABLE jobs ADD COLUMN saved_to TEXT');
   db.exec('CREATE INDEX IF NOT EXISTS idx_jobs_client ON jobs(client_key, status)');
   return db;
 }
@@ -206,6 +209,11 @@ export function purgeOldJobs(olderThanMs: number): number {
   return Number(res.changes);
 }
 
+/** Modo local: registra la carpeta donde se guardan los archivos del trabajo. */
+export function setJobSavedTo(id: string, dir: string): void {
+  getDb().prepare('UPDATE jobs SET saved_to = ? WHERE id = ?').run(dir, id);
+}
+
 export function markExpired(id: string): void {
   const d = getDb();
   d.prepare(`UPDATE jobs SET status = 'expired' WHERE id = ?`).run(id);
@@ -243,6 +251,7 @@ export function getJobState(id: string): JobState | null {
     queuePosition,
     error: job.error,
     downloadReady: job.status === 'done' && tracks.some((t) => t.status === 'done'),
+    savedTo: job.saved_to ?? null,
     tracks: tracks.map((t) => ({
       id: t.track_id,
       title: t.title,
