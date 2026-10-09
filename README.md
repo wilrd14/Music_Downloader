@@ -144,7 +144,12 @@ Más detalle (y cómo detenerlo) en [`docs/deployment-cloudflare.md`](docs/deplo
 | `TRACK_CONCURRENCY` | `3` | Canciones de un mismo trabajo que se descargan a la vez (`1` = en serie). |
 | `MAX_PARALLEL_DOWNLOADS` | `4` | Tope global de descargas (yt-dlp + ffmpeg) simultáneas sumando todos los trabajos. Protege la CPU y evita que YouTube limite las peticiones. |
 | `CORS_ORIGIN` | — | Origen permitido por CORS; solo si el frontend vive en otro dominio. |
-| `DATA_DIR` | `backend/data` | Base SQLite (`tunedrop.db`) y archivos temporales (`jobs/`). |
+| `TUNEDROP_MODE` | `local` | `local`: cada persona lo ejecuta en su PC y guarda en su carpeta de música (sin límites por IP ni Turnstile). `server`: servicio público con límites, Turnstile y ZIP. |
+| `DOWNLOAD_DIR` | `<home>/Music/tunedrop` | Modo local: carpeta de música si no hay una elegida en la interfaz (el ajuste guardado manda). |
+| `TUNEDROP_BIN_DIR` | `<app>/bin` | Carpeta donde se busca primero `yt-dlp` y `ffmpeg` empaquetados. |
+| `YT_DLP_AUTO_UPDATE` | `1` en local | Actualiza `yt-dlp` al arrancar (máx. cada 24 h) solo si es el de `bin/`. `0` lo desactiva. |
+| `TUNEDROP_NO_BROWSER` | — | `1` evita abrir el navegador al arrancar el modo local. |
+| `DATA_DIR` | `backend/data` (servidor) · carpeta de aplicación del SO (local) | Base SQLite (`tunedrop.db`), `settings.json` y archivos temporales (`jobs/`, solo servidor). |
 | `YT_DLP_PATH` | `yt-dlp` | Ruta a yt-dlp si no está en el PATH (`.exe`, no `.cmd`). |
 | `FFMPEG_PATH` | — | Ruta a `ffmpeg.exe` o a la carpeta que lo contiene. |
 | `RATE_LIMIT_GENERAL_PER_MIN` | `120` | Peticiones por minuto y por IP a `/api/*`. |

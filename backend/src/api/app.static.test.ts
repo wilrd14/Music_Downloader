@@ -6,6 +6,7 @@ import { after, before, test } from 'node:test';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tunedrop-static-'));
 process.env.DATA_DIR = tmp; // antes de importar config
+process.env.TUNEDROP_MODE = 'server'; // estas pruebas cubren el modo servidor
 const { buildApp } = await import('./app');
 
 const dist = path.join(tmp, 'dist');

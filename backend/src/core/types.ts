@@ -43,6 +43,8 @@ export interface JobState {
   queuePosition: number | null;
   error: string | null;
   downloadReady: boolean;
+  /** Modo local: carpeta donde quedaron los archivos; null en modo servidor o si aún no se sabe. */
+  savedTo: string | null;
   tracks: TrackState[];
 }
 

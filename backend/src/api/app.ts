@@ -19,9 +19,14 @@ import {
   getJobRow,
   getJobState,
   getTrackRows,
+  isInside,
   limits as defaultLimits,
+  resolveDownloadDir,
   sanitizeFileName,
+  updateSettings,
   UserError,
+  validateDownloadDir,
+  type AppMode,
   type AudioFormat,
   type HealthState,
   type Limits,
@@ -29,7 +34,9 @@ import {
   type Resolver,
 } from '../core';
 import { checkTools, findResolver, resolvers as defaultResolvers } from '../resolvers';
+import { openWithSystem } from '../core/opener';
 import { clientIp } from './clientIp';
+import { checkLocalRequest } from './localGuard';
 import { verifyTurnstile } from './turnstile';
 
 export interface AppOptions {
@@ -45,6 +52,12 @@ export interface AppOptions {
   diskUsage?: () => Promise<number> | number;
   /** fetch usado para llamar a siteverify de Turnstile. */
   turnstileFetch?: typeof fetch;
+  /** `local` (por defecto según TUNEDROP_MODE) o `server`. Ver docs/architecture.md. */
+  mode?: AppMode;
+  /** Modo local: puerto real de la app, solo si aún no escucha (pruebas con `inject`); si escucha se lee del servidor. */
+  port?: number;
+  /** Modo local: abre una carpeta en el explorador de archivos (inyectable para pruebas). */
+  openFolder?: (dir: string) => Promise<void> | void;
 }
 
 const API_CSP = "default-src 'none'; frame-ancestors 'none'";
@@ -75,16 +88,15 @@ export const contentDisposition = (fileName: string) => {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /** True si `file` está dentro de `base` (evita servir rutas fuera de la carpeta de trabajos). */
-export function isInside(base: string, file: string): boolean {
-  const rel = path.relative(path.resolve(base), path.resolve(file));
-  return !!rel && !rel.startsWith('..') && !path.isAbsolute(rel);
-}
+export { isInside };
 
 const asText = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
 
 export async function buildApp(options: AppOptions = {}) {
   const resolverList = options.resolvers ?? defaultResolvers;
   const tools = options.checkTools ?? checkTools;
+  const mode = options.mode ?? config.mode;
+  const local = mode === 'local';
 
   getDb();
 
@@ -99,24 +111,33 @@ export async function buildApp(options: AppOptions = {}) {
     requestTimeout: 30_000,
     connectionTimeout: 60_000,
   });
-  await app.register(cors, { origin: config.corsOrigin ?? false });
+  // Puerto real de la app (modo local): el del servidor si ya escucha; si no, el indicado o el configurado.
+  const ownPort = (): number => {
+    const addr = app.server.address();
+    return addr && typeof addr === 'object' ? addr.port : (options.port ?? config.apiPort);
+  };
 
-  if (!lim.turnstileSecretKey) {
-    app.log.warn('TURNSTILE_SECRET_KEY no está definida: no se verifica el anti-bots (solo aceptable en desarrollo).');
-  } else if (!lim.turnstileSiteKey) {
-    app.log.warn('TURNSTILE_SITE_KEY no está definida: el frontend no podrá obtener el token y se rechazarán las descargas.');
+  if (!local) {
+    // Modo servidor: CORS solo para el origen configurado. En modo local no hay CORS en absoluto.
+    await app.register(cors, { origin: config.corsOrigin ?? false });
+
+    if (!lim.turnstileSecretKey) {
+      app.log.warn('TURNSTILE_SECRET_KEY no está definida: no se verifica el anti-bots (solo aceptable en desarrollo).');
+    } else if (!lim.turnstileSiteKey) {
+      app.log.warn('TURNSTILE_SITE_KEY no está definida: el frontend no podrá obtener el token y se rechazarán las descargas.');
+    }
+
+    // Límites por IP real del cliente. Los archivos estáticos quedan fuera; las rutas sensibles llevan su propio límite.
+    await app.register(rateLimit, {
+      global: true,
+      max: lim.rateGeneralPerMin,
+      timeWindow: lim.rateWindowMs,
+      keyGenerator: (req) => clientIp(req),
+      allowList: (req) => !req.url.startsWith('/api/'),
+      // El tiempo de espera viaja en la cabecera Retry-After; la interfaz lo muestra.
+      errorResponseBuilder: () => new UserError('Demasiadas peticiones desde tu conexión. Espera un momento e inténtalo de nuevo.', 429),
+    });
   }
-
-  // Límites por IP real del cliente. Los archivos estáticos quedan fuera; las rutas sensibles llevan su propio límite.
-  await app.register(rateLimit, {
-    global: true,
-    max: lim.rateGeneralPerMin,
-    timeWindow: lim.rateWindowMs,
-    keyGenerator: (req) => clientIp(req),
-    allowList: (req) => !req.url.startsWith('/api/'),
-    // El tiempo de espera viaja en la cabecera Retry-After; la interfaz lo muestra.
-    errorResponseBuilder: () => new UserError('Demasiadas peticiones desde tu conexión. Espera un momento e inténtalo de nuevo.', 429),
-  });
   const routeLimit = (max: number) => ({ config: { rateLimit: { max, timeWindow: lim.rateWindowMs } } });
 
   app.addHook('onRequest', async (req, reply) => {
@@ -128,8 +149,23 @@ export async function buildApp(options: AppOptions = {}) {
     reply.header('Referrer-Policy', isApi ? 'no-referrer' : 'strict-origin-when-cross-origin');
     if (!isApi) reply.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
 
-    // Los POST deben ser JSON: obliga al preflight de CORS y frena formularios cruzados (CSRF).
-    if (req.method === 'POST' && !String(req.headers['content-type'] ?? '').toLowerCase().startsWith('application/json')) {
+    // Modo local: Host, Origin y Sec-Fetch-Site (DNS rebinding y peticiones desde otras webs). Ver localGuard.ts.
+    if (local) {
+      const verdict = checkLocalRequest({
+        host: req.headers.host,
+        origin: req.headers.origin,
+        secFetchSite: req.headers['sec-fetch-site'] as string | undefined,
+        port: ownPort(),
+        isApi,
+      });
+      if (!verdict.ok) return reply.code(403).send({ error: 'Petición no permitida.' });
+    }
+
+    // Los POST/PUT deben ser JSON: obliga al preflight de CORS y frena formularios cruzados (CSRF).
+    if (
+      (req.method === 'POST' || req.method === 'PUT') &&
+      !String(req.headers['content-type'] ?? '').toLowerCase().startsWith('application/json')
+    ) {
       return reply.code(415).send({ error: 'Content-Type debe ser application/json.' });
     }
 
@@ -170,7 +206,54 @@ export async function buildApp(options: AppOptions = {}) {
   });
 
   // Datos públicos para la interfaz (nunca la clave secreta).
-  app.get('/api/config', async () => ({ turnstileSiteKey: lim.turnstileSecretKey ? lim.turnstileSiteKey : null }));
+  app.get('/api/config', async () => ({
+    mode,
+    downloadDir: local ? resolveDownloadDir() : null,
+    turnstileSiteKey: !local && lim.turnstileSecretKey ? lim.turnstileSiteKey : null,
+  }));
+
+  if (local) {
+    // Carpeta de música: ajuste persistente (settings.json). Solo existe en modo local (en servidor: 404).
+    app.get('/api/settings', async () => ({ downloadDir: resolveDownloadDir() }));
+
+    app.put<{ Body: { downloadDir?: unknown } }>('/api/settings', async (req) => {
+      const downloadDir = validateDownloadDir(req.body?.downloadDir);
+      updateSettings(config.dataDir, { downloadDir });
+      return { downloadDir };
+    });
+
+    // Abre la carpeta de música, o la de un trabajo, en el explorador de archivos. Solo rutas dentro de la carpeta de música.
+    app.post<{ Body: { jobId?: unknown } }>('/api/open-folder', async (req) => {
+      const base = resolveDownloadDir();
+      let target = base;
+      const jobId = req.body?.jobId;
+      if (jobId !== undefined && jobId !== null) {
+        if (typeof jobId !== 'string' || !UUID_RE.test(jobId)) throw new UserError('Identificador de descarga no válido.', 400);
+        const job = getJobRow(jobId);
+        if (!job) throw new UserError('Descarga no encontrada.', 404);
+        if (!job.saved_to) throw new UserError('Esa descarga todavía no tiene carpeta.', 404);
+        target = job.saved_to;
+      }
+      // Contención: la carpeta (con enlaces simbólicos resueltos) debe ser la de música o colgar de ella.
+      let realBase: string;
+      let realTarget: string;
+      try {
+        fs.mkdirSync(base, { recursive: true });
+        realBase = fs.realpathSync(base);
+        realTarget = fs.realpathSync(target);
+      } catch {
+        throw new UserError('La carpeta ya no existe.', 404);
+      }
+      if (!isInside(realBase, realTarget, true)) throw new UserError('Esa carpeta está fuera de tu carpeta de música.', 400);
+      try {
+        await (options.openFolder ?? openWithSystem)(realTarget);
+      } catch (err) {
+        req.log.error(err);
+        throw new UserError('No se pudo abrir la carpeta.', 500);
+      }
+      return { ok: true };
+    });
+  }
 
   app.post<{ Body: { url?: unknown } }>('/api/resolve', routeLimit(lim.rateResolvePerMin), async (req) => {
     const url = asText(req.body?.url);
@@ -202,18 +285,21 @@ export async function buildApp(options: AppOptions = {}) {
     if (!url) throw new UserError('Pega un enlace.');
     if (!AUDIO_FORMATS.includes(format)) throw new UserError('Formato no soportado.');
 
-    const ip = clientIp(req);
-    const clientKey = clientKeyFor(ip);
+    // Modo local: sin IP de cliente, topes, cuota de disco ni anti-bots (la persona usa su propio PC y su disco).
+    const ip = local ? '' : clientIp(req);
+    const clientKey = local ? '' : clientKeyFor(ip);
 
     // Topes: disco, cola global y por IP (antes de gastar yt-dlp o una verificación).
-    if ((await diskUsage()) >= lim.maxDiskBytes) {
-      retryAfter(reply, 120);
-      throw new UserError('El servicio está al límite de almacenamiento. Inténtalo de nuevo en unos minutos.', 503);
+    if (!local) {
+      if ((await diskUsage()) >= lim.maxDiskBytes) {
+        retryAfter(reply, 120);
+        throw new UserError('El servicio está al límite de almacenamiento. Inténtalo de nuevo en unos minutos.', 503);
+      }
+      checkQueueCaps(clientKey, reply);
     }
-    checkQueueCaps(clientKey, reply);
 
     // Anti-bots (si hay clave secreta configurada).
-    if (lim.turnstileSecretKey) {
+    if (!local && lim.turnstileSecretKey) {
       const token = req.body?.turnstileToken;
       if (typeof token !== 'string' || !token)
         throw new UserError('Falta la verificación anti-bots. Recarga la página e inténtalo de nuevo.', 400);
@@ -243,11 +329,11 @@ export async function buildApp(options: AppOptions = {}) {
       throw new UserError(`Máximo ${config.maxTracksPerJob} canciones por descarga.`);
 
     // Tras esperar a yt-dlp otra petición pudo llenar la cola: se comprueba de nuevo sin await de por medio.
-    checkQueueCaps(clientKey, reply);
+    if (!local) checkQueueCaps(clientKey, reply);
 
     const id = crypto.randomUUID();
     createJob({
-      clientKey,
+      clientKey: local ? null : clientKey,
       id,
       provider: source.provider,
       sourceUrl: source.sourceUrl,
@@ -323,6 +409,8 @@ export async function buildApp(options: AppOptions = {}) {
   });
 
   app.get<{ Params: { id: string } }>('/api/jobs/:id/download', routeLimit(lim.rateDownloadPerMin), async (req, reply) => {
+    // Modo local: los archivos ya están en la carpeta de música; no hay descarga por el navegador ni ZIP.
+    if (local) return reply.code(404).send({ error: 'En modo local los archivos se guardan directamente en tu carpeta de música.' });
     const job = getJobRow(req.params.id);
     if (!job) return reply.code(404).send({ error: 'Descarga no encontrada.' });
     if (job.status === 'expired') return reply.code(410).send({ error: 'La descarga expiró. Vuelve a generarla.' });
@@ -356,7 +444,12 @@ export async function buildApp(options: AppOptions = {}) {
 
   // Interfaz compilada en el mismo origen: sin CORS y con una sola política de acceso.
   const staticDir = options.staticDir === undefined ? config.staticDir : options.staticDir;
-  if (staticDir && fs.existsSync(path.join(staticDir, 'index.html'))) {
+  const hasStatic = !!staticDir && fs.existsSync(path.join(staticDir, 'index.html'));
+  if (!hasStatic) {
+    // Sin interfaz: toda ruta desconocida (incluidas las de modo local en servidor) responde JSON.
+    app.setNotFoundHandler((_req, reply) => reply.code(404).send({ error: 'No encontrado.' }));
+  }
+  if (hasStatic && staticDir) {
     await app.register(fastifyStatic, {
       root: staticDir,
       wildcard: false,

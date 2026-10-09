@@ -1,8 +1,10 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import {
   config,
   finishJob,
   getTrackRows,
+  reserveFileBase,
   sanitizeFileName,
   updateTrack,
   UserError,
@@ -67,8 +69,15 @@ export interface RunnerDeps {
   semaphore: Semaphore;
   /** Pistas de este trabajo que se procesan a la vez (por defecto TRACK_CONCURRENCY). */
   trackConcurrency?: number;
-  /** Carpeta de salida (por defecto data/jobs/<id>/tracks). */
-  outDir?: string;
+  /**
+   * Carpeta de salida, decidida por quien llama (por defecto data/jobs/<id>/tracks, modo servidor).
+   * En modo local es la carpeta de música (o su subcarpeta de playlist); puede ser una función del trabajo.
+   */
+  outDir?: string | ((job: JobRow) => string);
+  /** Modo local: nunca sobrescribir; si el archivo existe se añade " (1)", " (2)"... antes de la extensión. */
+  uniqueNames?: boolean;
+  /** Modo local: se invoca al empezar con la carpeta donde quedarán los archivos (se guarda como `savedTo`). */
+  setSavedTo?: (jobId: string, dir: string) => void;
   retryDelayMs?: number;
   /** Mínimo entre escrituras de progreso de una misma pista. */
   progressThrottleMs?: number;
@@ -100,10 +109,20 @@ export async function runJob(job: JobRow, deps: RunnerDeps): Promise<JobResult> 
     retryDelayMs = 2000,
     progressThrottleMs = 400,
   } = deps;
-  const outDir = deps.outDir ?? path.join(config.jobsDir, job.id, 'tracks');
   const concurrency = Math.max(1, Math.floor(deps.trackConcurrency ?? config.trackConcurrency));
 
   log(`job ${job.id} iniciado (${job.title})`);
+  let outDir: string;
+  try {
+    outDir =
+      typeof deps.outDir === 'function' ? deps.outDir(job) : (deps.outDir ?? path.join(config.jobsDir, job.id, 'tracks'));
+    fs.mkdirSync(outDir, { recursive: true });
+    deps.setSavedTo?.(job.id, outDir);
+  } catch (err) {
+    console.error(err);
+    closeJob(job.id, 'failed', 'No se pudo preparar la carpeta de destino.');
+    return { ok: 0, total: readTracks(job.id).length };
+  }
   const tracks = readTracks(job.id);
   const pad = String(tracks.length).length;
   let ok = tracks.filter((t) => t.status === 'done').length;
@@ -111,8 +130,11 @@ export async function runJob(job: JobRow, deps: RunnerDeps): Promise<JobResult> 
 
   async function processTrack(row: TrackRow): Promise<void> {
     const name = sanitizeFileName(`${row.artist} - ${row.title}`);
-    const fileBase = job.kind === 'playlist' ? `${String(row.idx + 1).padStart(pad, '0')} - ${name}` : name;
+    const wanted = job.kind === 'playlist' ? `${String(row.idx + 1).padStart(pad, '0')} - ${name}` : name;
     const label = `job ${job.id} pista ${row.idx + 1}/${tracks.length}`;
+    // Modo local: el nombre se reserva antes de descargar para no pisar archivos existentes ni a otra pista en curso.
+    const reservation = deps.uniqueNames ? reserveFileBase(outDir, wanted, job.format) : null;
+    const fileBase = reservation?.fileBase ?? wanted;
 
     let lastWrite = 0;
     let startedAt = 0;
@@ -164,6 +186,8 @@ export async function runJob(job: JobRow, deps: RunnerDeps): Promise<JobResult> 
         console.error(e);
       }
       log(`${label} falló en ${startedAt ? Date.now() - startedAt : 0} ms: ${message}`);
+    } finally {
+      reservation?.release();
     }
   }
 

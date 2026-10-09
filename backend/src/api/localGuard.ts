@@ -1,0 +1,40 @@
+/**
+ * Protecciones del modo local. La API escucha en 127.0.0.1, pero cualquier página web que la persona
+ * visite puede intentar llegar a ella desde su navegador. Tres defensas (ver docs/security.md):
+ *  1. Host: solo se atiende `localhost`, `127.0.0.1` o `[::1]` con el puerto real de la app
+ *     (frena el DNS rebinding: un dominio atacante que resuelve a 127.0.0.1 llega con otro `Host`).
+ *  2. Origin: en /api, si hay cabecera `Origin` debe ser exactamente el origen de la propia app.
+ *  3. Sec-Fetch-Site: en /api, si el navegador la envía, debe ser `same-origin` (la propia interfaz)
+ *     o `none` (acción directa de la persona, como escribir la URL).
+ * Peticiones sin `Origin` ni `Sec-Fetch-Site` (curl, scripts locales) se permiten: no son un navegador ajeno.
+ */
+
+export type GuardDecision = { ok: true } | { ok: false; reason: 'host' | 'origin' | 'sec-fetch-site' };
+
+export interface GuardInput {
+  host: string | undefined;
+  origin: string | undefined;
+  secFetchSite: string | undefined;
+  /** Puerto real en el que escucha la app. */
+  port: number;
+  /** La petición es de /api/* (las comprobaciones 2 y 3 solo aplican ahí). */
+  isApi: boolean;
+}
+
+export function allowedHosts(port: number): string[] {
+  return [`localhost:${port}`, `127.0.0.1:${port}`, `[::1]:${port}`];
+}
+
+export function checkLocalRequest(input: GuardInput): GuardDecision {
+  const host = (input.host ?? '').trim().toLowerCase();
+  if (!allowedHosts(input.port).includes(host)) return { ok: false, reason: 'host' };
+  if (!input.isApi) return { ok: true };
+
+  if (input.origin !== undefined && input.origin !== `http://${host}`) return { ok: false, reason: 'origin' };
+
+  if (input.secFetchSite !== undefined) {
+    const site = input.secFetchSite.trim().toLowerCase();
+    if (site !== 'same-origin' && site !== 'none') return { ok: false, reason: 'sec-fetch-site' };
+  }
+  return { ok: true };
+}
