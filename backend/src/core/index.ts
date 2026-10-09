@@ -8,5 +8,5 @@ export * from './disk';
 export * from './settings';
 export * from './naming';
 export * from './locations';
-export { parseMode, defaultLocalDataDir, defaultMusicDir, findBinary } from './platform';
+export { parseMode, defaultLocalDataDir, defaultMusicDir, findBinary, windowsSystemFile } from './platform';
 export type { BinaryName, BinarySource, FindBinaryOptions, FoundBinary } from './platform';

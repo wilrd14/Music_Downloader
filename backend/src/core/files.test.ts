@@ -33,6 +33,22 @@ test('respeta la longitud máxima sin dejar punto final', () => {
   assert.ok(sanitizeFileName('x'.repeat(500)).length <= 120);
 });
 
+test('seguridad: quita anulaciones de dirección y caracteres invisibles (extensión disfrazada)', () => {
+  // U+202E (RLO) haría que `Tema‮gpj.3pm` se vea como «Tema mp3.jpg»
+  assert.equal(sanitizeFileName('Tema‮gpj'), 'Temagpj');
+  assert.equal(sanitizeFileName('a⁦b⁩c​d‏e﻿f\u0085g\u007Fh'), 'abcdefgh');
+  // se conservan ZWNJ/ZWJ (persa, emojis compuestos)
+  assert.equal(sanitizeFileName('می‌خواهم'), 'می‌خواهم');
+  const out = sanitizeFileName('‮');
+  assert.equal(out, 'audio');
+});
+
+test('seguridad: también reserva COM¹/LPT² (superíndices) de Windows', () => {
+  assert.equal(sanitizeFileName('COM¹'), '_COM¹');
+  assert.equal(sanitizeFileName('lpt².txt'), '_lpt².txt');
+  assert.equal(sanitizeFileName('com¹x'), 'com¹x');
+});
+
 test('nombres reservados de Windows se prefijan', () => {
   assert.equal(sanitizeFileName('CON'), '_CON');
   assert.equal(sanitizeFileName('nul.txt'), '_nul.txt');
