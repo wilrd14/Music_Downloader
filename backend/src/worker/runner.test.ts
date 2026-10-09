@@ -131,11 +131,11 @@ test('withRetry: reintenta una vez y luego propaga el error', async () => {
 test('un trabajo respeta TRACK_CONCURRENCY y usa el paralelismo disponible', async () => {
   const job = newJob(8);
   const { resolver, state } = fakeResolver({ ms: 30 });
-  const t0 = Date.now();
   const res = await runJob(job, deps(resolver, new Semaphore(10), { trackConcurrency: 3, outDir: tmp }));
   assert.deepEqual(res, { ok: 8, total: 8 });
+  // La concurrencia se comprueba de forma exacta (máximo de descargas a la vez), no con el reloj:
+  // en serie sería 1 y un límite de 3 no puede pasar de 3. Medir tiempo real es inestable en CI.
   assert.equal(state.maxInFlight, 3);
-  assert.ok(Date.now() - t0 < 8 * 30, 'debe tardar menos que en secuencial');
   assert.equal(db.getJobRow(job.id)!.status, 'done');
 });
 
