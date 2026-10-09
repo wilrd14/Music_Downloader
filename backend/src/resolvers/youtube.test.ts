@@ -54,6 +54,72 @@ test('canHandle rechaza no-URLs y protocolos raros', () => {
   assert.equal(youtube.canHandle('https://youtu.be/abc'), true);
 });
 
+test('seguridad: solo el puerto estándar y sin credenciales llegan a yt-dlp', () => {
+  for (const bad of [
+    'https://www.youtube.com:8080/watch?v=abc',
+    'http://youtu.be:81/abc',
+    'https://usuario:clave@www.youtube.com/watch?v=abc',
+    'https://usuario@youtu.be/abc',
+    'https://www.youtube.com./watch?v=abc',
+    'https://www.youtube.com.evil.test/watch?v=abc',
+    'https://www.youtube.com@evil.test/watch?v=abc',
+  ]) {
+    assert.equal(youtube.canHandle(bad), false, bad);
+  }
+  assert.equal(youtube.canHandle('https://www.youtube.com:443/watch?v=abc'), true); // puerto por defecto
+});
+
+test('seguridad: ids con caracteres raros se descartan (van a una URL y a la ruta de la miniatura)', async () => {
+  const r = createYoutubeResolver(async () =>
+    ok(
+      JSON.stringify({
+        title: 'PL',
+        entries: [
+          { id: 'ok-_1', title: 'bueno' },
+          { id: 'a&b=c', title: 'malo 1' },
+          { id: 'x/../y', title: 'malo 2' },
+          { id: 'z#frag', title: 'malo 3' },
+          { id: '-oexec', title: 'empieza por guion pero es un id válido' },
+        ],
+      }),
+    ),
+  );
+  const src = await r.resolve('https://www.youtube.com/playlist?list=PL1');
+  assert.deepEqual(src.tracks.map((t) => t.id), ['ok-_1', '-oexec']);
+});
+
+test('seguridad: con el yt-dlp empaquetado se ignoran los archivos de configuración (yt-dlp.conf con --exec)', async () => {
+  const seen: Record<string, string[]> = {};
+  const mk = (source: 'bundled' | 'path', key: string) =>
+    createYoutubeResolver(async (_c, args) => {
+      seen[key] = args;
+      return ok(JSON.stringify({ id: 'abc', title: 't', channel: 'a' }));
+    }, source);
+  await mk('bundled', 'b').resolve('https://youtu.be/abc');
+  await mk('path', 'p').resolve('https://youtu.be/abc');
+  assert.equal(seen.b?.[0], '--ignore-config');
+  assert.ok(!seen.p?.includes('--ignore-config'));
+  assert.equal(seen.b?.at(-2), '--'); // la URL sigue yendo tras `--`
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tunedrop-yt-'));
+  try {
+    let dl: string[] = [];
+    const r = createYoutubeResolver(async (_c, args) => {
+      dl = args;
+      fs.writeFileSync(path.join(dir, 'x.mp3'), 'x');
+      return { code: 0, stdout: '', stderr: '' };
+    }, 'bundled');
+    await r.download(
+      { id: 'abc', title: 't', artist: 'a', durationSec: null, thumbnail: null, url: 'https://www.youtube.com/watch?v=abc' },
+      { outDir: dir, fileBase: 'x', format: 'mp3', onProgress: () => {} },
+    );
+    assert.equal(dl[0], '--ignore-config');
+    assert.equal(dl.at(-2), '--');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 const ok = (stdout: string): RunResult => ({ code: 0, stdout, stderr: '' });
 
 test('resolve: video individual', async () => {

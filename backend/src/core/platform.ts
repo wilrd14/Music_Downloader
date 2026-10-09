@@ -33,6 +33,16 @@ export function defaultLocalDataDir({ platform = process.platform, env = process
   return path.posix.join(env.XDG_DATA_HOME || path.posix.join(home, '.local', 'share'), 'tunedrop');
 }
 
+/**
+ * Ruta absoluta de un programa del propio Windows (`explorer.exe`, `System32\taskkill.exe`...).
+ * Si se lanzara por nombre, Windows (libuv) busca primero en la carpeta actual: un `explorer.exe` plantado
+ * en la carpeta desde la que se ejecuta tunedrop (p. ej. Descargas) se ejecutaría en su lugar.
+ */
+export function windowsSystemFile(parts: string[], env: Record<string, string | undefined> = process.env): string {
+  const root = env.SystemRoot || env.windir || 'C:\\Windows';
+  return path.win32.join(root, ...parts);
+}
+
 /** Carpeta de música por defecto: `<home>/Music/tunedrop`. */
 export function defaultMusicDir({ platform = process.platform, home = os.homedir() }: PlatformEnv = {}): string {
   return (platform === 'win32' ? path.win32 : path.posix).join(home, 'Music', 'tunedrop');

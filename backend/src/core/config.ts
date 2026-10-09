@@ -98,6 +98,11 @@ export const limits = {
   maxActiveJobsPerIp: num(process.env.MAX_ACTIVE_JOBS_PER_IP, 2),
   /** Tamaño máximo de data/jobs; se rechazan trabajos nuevos al alcanzarlo. */
   maxDiskBytes: num(process.env.MAX_DISK_MB, 4096) * 1024 * 1024,
+  /** Conexiones SSE (`/api/jobs/:id/events`) abiertas a la vez, en total y por cliente (modo servidor). Cada una consulta la base cada 600 ms. */
+  maxSseTotal: num(process.env.MAX_SSE_TOTAL, 200),
+  maxSsePerIp: num(process.env.MAX_SSE_PER_IP, 10),
+  /** Consultas simultáneas a yt-dlp desde `/api/resolve` y `POST /api/jobs` (las que ya están en caché no cuentan). */
+  maxConcurrentResolves: num(process.env.MAX_CONCURRENT_RESOLVES, 8),
   /** Las filas de trabajos terminados se borran pasado este tiempo (minimizar datos). */
   jobRowRetentionMs: 24 * 60 * 60_000,
   /** Cloudflare Turnstile: sin clave secreta no se verifica (modo desarrollo). */

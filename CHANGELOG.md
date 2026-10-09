@@ -38,6 +38,21 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 - Las pruebas ya no leen `backend/.env` (se detectan por `NODE_TEST_CONTEXT`), así que no dependen de la configuración real de la máquina (p. ej. las claves de Turnstile).
 - Las pruebas del worker escribían en la base de datos real (`backend/data`) por un `import` estático que cargaba la configuración antes de fijar `DATA_DIR`; ahora usan una carpeta temporal.
 
+### Seguridad
+Auditoría de seguridad (2026-10-09); detalle, evidencias y riesgos abiertos en `docs/security.md` (sección «Auditoría de seguridad»). Nuevo `SECURITY.md` con cómo informar de una vulnerabilidad.
+- **Pérdida de archivos de la persona (S-02, media)**: yt-dlp trataba como «ya descargado» un archivo existente con el mismo nombre base (`Tema.m4a`, `Tema.jpg`…) y lo **borraba** al convertir el nuevo (reproducido con yt-dlp 2026.08.19). El nombre «(1)» ahora se elige también comprobando esos archivos intermedios, y la reserva es por nombre base para que MP3 y M4A simultáneos no se pisen.
+- **Modo local: comprobaciones de `Origin`/`Sec-Fetch-Site` esquivables (S-01, baja)**: `/%61pi/settings` llegaba a `/api/settings` sin pasar por ellas. Ahora la ruta se decodifica y se mira también la ruta enrutada (la comprobación de `Host`, que frena el DNS rebinding, ya cubría todo).
+- **Carpeta de música (S-03, baja)**: se rechazan nombres de dispositivo de Windows (`C:\CON`, `NUL`, `COM1`…), componentes con punto o espacio final (`C:\Windows.` se creaba como carpeta distinta de `C:\Windows`), `:` (flujos alternativos de datos) y la carpeta Inicio del usuario; la ruta real se resuelve con `realpath.native` (también expande nombres cortos 8.3 como `PROGRA~1`).
+- **DoS por conexiones SSE (S-04, media en modo servidor)**: tope total (`MAX_SSE_TOTAL`, 200) y por cliente (`MAX_SSE_PER_IP`, 10, solo servidor), con 429. Medido: 800 conexiones de un cliente hacían que `/api/health` tardara 2,8 s; con el tope, 8 ms.
+- **Límites por IP evadibles con IPv6 (S-05, media en modo servidor)**: los límites y el tope de descargas activas cuentan por /64 en IPv6 y tratan `::ffff:a.b.c.d` como la IPv4.
+- **Memoria y procesos en `/api/resolve` (S-06, baja)**: caché limitada a 200 entradas, consultas iguales simultáneas comparten un solo yt-dlp y tope de consultas simultáneas (`MAX_CONCURRENT_RESOLVES`, 8; 503 con `Retry-After`).
+- **Nombres de archivo (S-07, baja)**: se quitan los caracteres de dirección y los invisibles (U+202E «RLO» disfrazaba la extensión) y se reservan también `COM¹`/`LPT²`.
+- **yt-dlp empaquetado (S-08, baja)**: se lanza con `--ignore-config`, así un `yt-dlp.conf` plantado en la carpeta actual, junto al ejecutable o en el perfil no puede añadir `--exec`. El lanzador `.bat` trabaja desde su propia carpeta (`pushd`).
+- **Programas del sistema por ruta absoluta (S-09, baja)**: `explorer.exe` y `taskkill.exe` se lanzan desde `%SystemRoot%`; Windows busca primero en la carpeta actual los programas lanzados por nombre.
+- **Enlaces y ids (S-10, baja)**: solo puerto estándar y sin usuario/clave en los enlaces de YouTube; los ids de pista deben ser `[\w-]{1,64}`.
+- **Cabeceras (S-11, informativa)**: `Cache-Control: no-store` en toda la API; la CSP del modo local ya no abre `challenges.cloudflare.com` (no hay Turnstile); el flujo SSE ya no repite `Cache-Control`.
+- **CI (S-12, informativa)**: `persist-credentials: false` en los `checkout`, auditoría de `deploy/` y Dependabot para `deploy/`.
+
 ### Decisiones y estado (2026-10-08, para retomar en otra sesión)
 - **Dirección: local-first.** Cada persona ejecuta en su propio PC la parte que descarga; la web pública solo presenta e instala. Motivo: YouTube bloquea las IPs de servidores (probado en un VPS con 10 clientes distintos de `yt-dlp`: todos piden iniciar sesión; saliendo por una IP de casa mediante un túnel SSH inverso sí funciona), y así ninguna IP concentra las descargas ni se aloja contenido de terceros. La versión «servidor» (límites por IP, Turnstile, ZIP) se conserva como modo opcional.
 - **Spotify descartado**: su API ya no permite leer playlists con credenciales de app.

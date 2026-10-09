@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { UserError } from '../core';
+import { UserError, windowsSystemFile } from '../core';
 
 export interface RunOptions {
   signal?: AbortSignal;
@@ -17,7 +17,7 @@ export interface RunResult {
 /** Mata el proceso y sus hijos (en Windows `kill()` no alcanza a ffmpeg). */
 function killTree(child: ChildProcess): void {
   if (process.platform === 'win32' && child.pid) {
-    spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' }).on('error', () => child.kill());
+    spawn(windowsSystemFile(['System32', 'taskkill.exe']), ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' }).on('error', () => child.kill());
   } else {
     child.kill();
   }

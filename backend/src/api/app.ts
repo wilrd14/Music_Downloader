@@ -35,8 +35,8 @@ import {
 } from '../core';
 import { checkTools, findResolver, resolvers as defaultResolvers } from '../resolvers';
 import { openWithSystem } from '../core/opener';
-import { clientIp } from './clientIp';
-import { checkLocalRequest } from './localGuard';
+import { clientIp, rateLimitKey } from './clientIp';
+import { checkLocalRequest, isApiRequest } from './localGuard';
 import { verifyTurnstile } from './turnstile';
 
 export interface AppOptions {
@@ -62,19 +62,23 @@ export interface AppOptions {
 
 const API_CSP = "default-src 'none'; frame-ancestors 'none'";
 // Debe coincidir con frontend/public/_headers (que aplica Cloudflare Pages si algún día se usa).
-const FRONTEND_CSP = [
-  "default-src 'self'",
-  "script-src 'self' https://challenges.cloudflare.com",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: https://i.ytimg.com",
-  "connect-src 'self'",
-  'frame-src https://challenges.cloudflare.com',
-  "font-src 'self'",
-  "object-src 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "frame-ancestors 'none'",
-].join('; ');
+const frontendCsp = (turnstile: boolean) =>
+  [
+    "default-src 'self'",
+    turnstile ? "script-src 'self' https://challenges.cloudflare.com" : "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: https://i.ytimg.com",
+    "connect-src 'self'",
+    turnstile ? 'frame-src https://challenges.cloudflare.com' : "frame-src 'none'",
+    "font-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join('; ');
+/** Modo servidor: con Turnstile (igual que `_headers`). Modo local: no hay Turnstile, así que no se abre ningún origen de Cloudflare. */
+export const FRONTEND_CSP = frontendCsp(true);
+export const FRONTEND_CSP_LOCAL = frontendCsp(false);
 
 export const contentDisposition = (fileName: string) => {
   const fallback = fileName.replace(/[^\x20-\x7e]/g, '_').replace(/["\\%;]/g, '_');
@@ -132,7 +136,7 @@ export async function buildApp(options: AppOptions = {}) {
       global: true,
       max: lim.rateGeneralPerMin,
       timeWindow: lim.rateWindowMs,
-      keyGenerator: (req) => clientIp(req),
+      keyGenerator: (req) => rateLimitKey(clientIp(req)),
       allowList: (req) => !req.url.startsWith('/api/'),
       // El tiempo de espera viaja en la cabecera Retry-After; la interfaz lo muestra.
       errorResponseBuilder: () => new UserError('Demasiadas peticiones desde tu conexión. Espera un momento e inténtalo de nuevo.', 429),
@@ -142,10 +146,12 @@ export async function buildApp(options: AppOptions = {}) {
 
   app.addHook('onRequest', async (req, reply) => {
     // Cabeceras de seguridad (la API solo devuelve JSON, SSE o archivos: nada que renderizar ni incrustar).
-    const isApi = req.url.startsWith('/api/');
+    const isApi = isApiRequest(req.url, req.routeOptions.url);
     reply.header('X-Content-Type-Options', 'nosniff');
     reply.header('X-Frame-Options', 'DENY');
-    reply.header('Content-Security-Policy', isApi ? API_CSP : FRONTEND_CSP);
+    reply.header('Content-Security-Policy', isApi ? API_CSP : local ? FRONTEND_CSP_LOCAL : FRONTEND_CSP);
+    // Nada de la API (estado de trabajos, descargas, ajustes) debe quedar en cachés del navegador o de intermediarios.
+    if (isApi) reply.header('Cache-Control', 'no-store');
     reply.header('Referrer-Policy', isApi ? 'no-referrer' : 'strict-origin-when-cross-origin');
     if (!isApi) reply.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
 
@@ -187,14 +193,40 @@ export async function buildApp(options: AppOptions = {}) {
   const resolveCache = new Map<string, { at: number; data: ResolvedSource }>();
   const CACHE_MS = 10 * 60_000;
 
-  async function resolveCached(url: string): Promise<ResolvedSource> {
+  /** Tope de entradas: una lista de 300 pistas pesa cientos de KB y las claves las elige quien llama. */
+  const CACHE_MAX_ENTRIES = 200;
+  /** Consultas a yt-dlp en curso: peticiones iguales comparten una; el total se limita (cada una es un proceso). */
+  const resolving = new Map<string, Promise<ResolvedSource>>();
+  let resolvingProcs = 0;
+
+  async function resolveCached(url: string, reply: { header: (k: string, v: string) => unknown }): Promise<ResolvedSource> {
     const now = Date.now();
     for (const [k, v] of resolveCache) if (now - v.at > CACHE_MS) resolveCache.delete(k);
     const hit = resolveCache.get(url);
     if (hit) return hit.data;
-    const data = await findResolver(url, resolverList).resolve(url);
-    resolveCache.set(url, { at: now, data });
-    return data;
+    const pending = resolving.get(url);
+    if (pending) return pending;
+
+    const resolver = findResolver(url, resolverList); // enlace no soportado: error inmediato, sin proceso
+    if (resolvingProcs >= lim.maxConcurrentResolves) {
+      retryAfter(reply, 5);
+      throw new UserError('Hay muchas consultas en curso ahora mismo. Inténtalo de nuevo en unos segundos.', 503);
+    }
+    resolvingProcs++;
+    const task = resolver
+      .resolve(url)
+      .then((data) => {
+        resolveCache.set(url, { at: Date.now(), data });
+        // Map conserva el orden de inserción: lo primero es lo más antiguo.
+        while (resolveCache.size > CACHE_MAX_ENTRIES) resolveCache.delete(resolveCache.keys().next().value as string);
+        return data;
+      })
+      .finally(() => {
+        resolvingProcs--;
+        resolving.delete(url);
+      });
+    resolving.set(url, task);
+    return task;
   }
 
   // Un resultado correcto se reutiliza 30 s; uno malo solo 2 s, para que un arranque lento (p. ej. el primer
@@ -258,10 +290,10 @@ export async function buildApp(options: AppOptions = {}) {
     });
   }
 
-  app.post<{ Body: { url?: unknown } }>('/api/resolve', routeLimit(lim.rateResolvePerMin), async (req) => {
+  app.post<{ Body: { url?: unknown } }>('/api/resolve', routeLimit(lim.rateResolvePerMin), async (req, reply) => {
     const url = asText(req.body?.url);
     if (!url) throw new UserError('Pega un enlace.');
-    const source = await resolveCached(url);
+    const source = await resolveCached(url, reply);
     return { ...source, maxTracksPerJob: config.maxTracksPerJob };
   });
 
@@ -290,7 +322,7 @@ export async function buildApp(options: AppOptions = {}) {
 
     // Modo local: sin IP de cliente, topes, cuota de disco ni anti-bots (la persona usa su propio PC y su disco).
     const ip = local ? '' : clientIp(req);
-    const clientKey = local ? '' : clientKeyFor(ip);
+    const clientKey = local ? '' : clientKeyFor(rateLimitKey(ip)); // por /64 en IPv6, igual que el límite de peticiones
 
     // Topes: disco, cola global y por IP (antes de gastar yt-dlp o una verificación).
     if (!local) {
@@ -320,7 +352,7 @@ export async function buildApp(options: AppOptions = {}) {
       }
     }
 
-    const source = await resolveCached(url);
+    const source = await resolveCached(url, reply);
     let tracks = source.tracks;
     const ids = req.body?.trackIds;
     if (Array.isArray(ids)) {
@@ -355,18 +387,32 @@ export async function buildApp(options: AppOptions = {}) {
     return state;
   });
 
+  let sseOpen = 0;
+  const sseByClient = new Map<string, number>();
+
   app.get<{ Params: { id: string } }>('/api/jobs/:id/events', (req, reply) => {
     const { id } = req.params;
     if (!getJobState(id)) return reply.code(404).send({ error: 'Descarga no encontrada.' });
+
+    // Cada conexión consulta la base cada 600 ms hasta que el trabajo termina: sin tope, unos cientos de conexiones
+    // de un solo cliente dejaban al servidor sin responder (medido en la auditoría: 800 conexiones -> /api/health tardó 2,8 s).
+    const sseKey = local ? '' : rateLimitKey(clientIp(req));
+    if (sseOpen >= lim.maxSseTotal || (!local && (sseByClient.get(sseKey) ?? 0) >= lim.maxSsePerIp)) {
+      retryAfter(reply, 5);
+      return reply.code(429).send({ error: 'Demasiadas conexiones de seguimiento abiertas. Cierra otras pestañas e inténtalo de nuevo.' });
+    }
+    sseOpen++;
+    sseByClient.set(sseKey, (sseByClient.get(sseKey) ?? 0) + 1);
 
     reply.hijack();
     const res = reply.raw;
     res.writeHead(200, {
       ...(reply.getHeaders() as OutgoingHttpHeaders),
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-transform',
-      Connection: 'keep-alive',
-      'X-Accel-Buffering': 'no',
+      // En minúsculas, como getHeaders(): con otra capitalización saldría la cabecera repetida (la de `no-store` y esta).
+      'content-type': 'text/event-stream',
+      'cache-control': 'no-cache, no-transform',
+      connection: 'keep-alive',
+      'x-accel-buffering': 'no',
     });
 
     let last = '';
@@ -374,8 +420,13 @@ export async function buildApp(options: AppOptions = {}) {
     let closed = false;
     const timer: { id?: NodeJS.Timeout } = {};
     const stop = () => {
+      if (closed) return;
       closed = true;
       if (timer.id) clearInterval(timer.id);
+      sseOpen--;
+      const left = (sseByClient.get(sseKey) ?? 1) - 1;
+      if (left <= 0) sseByClient.delete(sseKey);
+      else sseByClient.set(sseKey, left);
     };
     /** Devuelve true cuando el stream debe terminar. */
     const push = (): boolean => {

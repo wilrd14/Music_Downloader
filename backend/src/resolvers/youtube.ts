@@ -3,6 +3,7 @@ import path from 'node:path';
 import {
   config,
   UserError,
+  type BinarySource,
   type DownloadOptions,
   type ResolvedSource,
   type Resolver,
@@ -42,6 +43,8 @@ export function parseUrl(raw: string): URL | null {
 /** Decide si el enlace es un video o una playlist. Devuelve null si no es soportado. */
 export function classify(url: URL): 'track' | 'playlist' | null {
   if (!YT_HOSTS.has(url.hostname)) return null;
+  // Solo el puerto estándar y sin credenciales: ni `youtube.com:8080` ni `usuario:clave@youtube.com` llegan a yt-dlp.
+  if (url.port || url.username || url.password) return null;
   if (url.hostname === 'youtu.be') return url.pathname.length > 1 ? 'track' : null;
   if (url.pathname === '/playlist') return url.searchParams.get('list') ? 'playlist' : null;
   if (url.pathname === '/watch') return url.searchParams.get('v') ? 'track' : null;
@@ -55,8 +58,11 @@ const cleanArtist = (name: string | null | undefined) =>
 const videoUrl = (id: string) => `https://www.youtube.com/watch?v=${id}`;
 const thumbUrl = (id: string) => `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
 
+/** Un id de YouTube son letras, cifras, `_` y `-`; se exige porque se inserta en una URL y en la ruta de la miniatura. */
+const YT_ID_RE = /^[\w-]{1,64}$/;
+
 function toTrack(e: YtEntry): TrackInfo | null {
-  if (!e.id || !e.title || UNAVAILABLE_TITLES.test(e.title)) return null;
+  if (!e.id || !YT_ID_RE.test(e.id) || !e.title || UNAVAILABLE_TITLES.test(e.title)) return null;
   return {
     id: e.id,
     title: (e.track ?? e.title).trim(),
@@ -90,8 +96,16 @@ function ffmpegArgs(): string[] {
 
 export type CommandRunner = (cmd: string, args: string[], opts?: RunOptions) => Promise<RunResult>;
 
+/**
+ * Con el yt-dlp empaquetado se ignoran los archivos de configuración de yt-dlp: busca `yt-dlp.conf` en la carpeta
+ * actual, junto al ejecutable y en el perfil, y una línea `--exec ...` ahí ejecutaría un programa con cada descarga.
+ */
+export function configArgs(source: BinarySource): string[] {
+  return source === 'bundled' ? ['--ignore-config'] : [];
+}
+
 /** `runCmd` es inyectable para poder probar el parseo sin yt-dlp instalado. */
-export function createYoutubeResolver(runCmd: CommandRunner = run): Resolver {
+export function createYoutubeResolver(runCmd: CommandRunner = run, source: BinarySource = config.ytDlpSource): Resolver {
   return {
     name: 'youtube',
 
@@ -106,6 +120,7 @@ export function createYoutubeResolver(runCmd: CommandRunner = run): Resolver {
       if (!url || !kind) throw new UserError('Enlace de YouTube no válido. Usa un video o una playlist.');
 
       const args = [
+        ...configArgs(source),
         '-J',
         '--flat-playlist',
         '--no-warnings',
@@ -156,6 +171,7 @@ export function createYoutubeResolver(runCmd: CommandRunner = run): Resolver {
       const finalPath = `${base}.${opts.format}`;
 
       const args = [
+        ...configArgs(source),
         '-x',
         '--audio-format',
         opts.format,

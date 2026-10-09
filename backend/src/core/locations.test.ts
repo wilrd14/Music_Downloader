@@ -53,6 +53,33 @@ test('forma de la ruta (Windows): acepta rutas con unidad y rechaza lo demás', 
   }
 });
 
+test('seguridad (Windows): rechaza nombres de dispositivo, puntos/espacios finales, flujos ":" y el menú Inicio', () => {
+  // Hallazgo de la auditoría: Node creaba `C:\CON` y `C:\Windows.` (una carpeta distinta de C:\Windows que
+  // Explorer confunde con ella) y no se bloqueaba la carpeta Inicio (Startup) del usuario.
+  for (const bad of [
+    'C:\\CON',
+    'C:\\nul',
+    'C:\\Users\\ana\\Music\\NUL',
+    'C:\\Users\\ana\\Music\\aux.txt',
+    'C:\\Users\\ana\\Music\\COM1',
+    'C:\\Users\\ana\\Music\\LPT\u00B9',
+    'C:\\Windows.',
+    'C:\\Users\\ana\\Music\\tunedrop.',
+    'C:\\Users\\ana\\Music\\a. \\b',
+    'C:\\Users\\ana\\Music:secreto',
+    'C:\\Users\\ana\\Music\\a::$DATA',
+    'C:\\Users\\ana\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup',
+    'c:\\users\\ana\\appdata\\roaming\\microsoft\\windows\\start menu\\programs\\startup\\musica',
+    'C:\\Users\\ana\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu',
+  ]) {
+    assert.equal(win(bad).ok, false, bad);
+  }
+  // lo normal sigue valiendo (nombres que contienen, pero no son, un nombre reservado)
+  for (const good of ['C:\\Users\\ana\\Music\\console', 'C:\\Users\\ana\\Music\\Mi.musica', 'D:\\Musica\\COM1x', 'C:\\Users\\ana\\AppData\\Roaming\\Music']) {
+    assert.equal(win(good).ok, true, good);
+  }
+});
+
 test('forma de la ruta (Linux/macOS): acepta rutas absolutas y rechaza raíz, sistema y relativas', () => {
   assert.equal(okDir(nix('/home/ana/Music/tunedrop')), '/home/ana/Music/tunedrop');
   assert.equal(okDir(nix('/home/ana/Music//a/../tunedrop/')), '/home/ana/Music/tunedrop');
