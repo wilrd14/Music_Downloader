@@ -1,0 +1,96 @@
+tunedrop {{VERSION}} para Windows
+================================
+
+tunedrop descarga música de YouTube y YouTube Music (un video o una playlist)
+como audio MP3 u otros formatos, con título, artista y portada. Todo ocurre en
+tu propio PC: no hay cuentas ni servidores intermedios.
+
+Proyecto: https://github.com/wilrd14/Music_Downloader
+
+
+CÓMO EMPEZAR
+------------
+1. Extrae TODO el zip a una carpeta normal (clic derecho > "Extraer todo...").
+   No lo ejecutes desde dentro del zip.
+2. Haz doble clic en "Iniciar tunedrop.bat".
+3. Se abrirá una ventana negra (déjala abierta) y tu navegador con tunedrop.
+   Si el navegador no se abre, copia en él la dirección que aparece en la
+   ventana negra (algo como http://127.0.0.1:8787).
+4. Pega un enlace de YouTube o YouTube Music y descarga.
+
+No necesita instalación ni permisos de administrador. Puedes mover la carpeta
+donde quieras (también a un pendrive).
+
+
+DÓNDE SE GUARDAN LOS ARCHIVOS
+-----------------------------
+Por defecto, en Música\tunedrop (las playlists, en una subcarpeta con su
+nombre). Puedes cambiarlo con el engranaje de la esquina de la aplicación.
+Los archivos son tuyos: tunedrop no los borra nunca.
+
+
+CÓMO SALIR
+----------
+Cierra la ventana negra. Eso detiene tunedrop por completo.
+
+
+AVISO DE WINDOWS (SmartScreen) O DEL ANTIVIRUS
+----------------------------------------------
+tunedrop no está firmado digitalmente (firmar cuesta dinero cada año y es un
+proyecto libre y gratuito), así que Windows SmartScreen puede mostrar
+"Windows protegió su PC" al abrir el .bat. Si descargaste el zip desde la
+página oficial de versiones del proyecto, puedes elegir "Más información" y
+después "Ejecutar de todas formas".
+
+Para estar seguro de que el zip no fue modificado, comprueba su huella
+SHA-256. En PowerShell, dentro de la carpeta donde lo descargaste:
+
+    Get-FileHash .\tunedrop-windows-x64.zip -Algorithm SHA256
+
+El resultado debe ser idéntico al SHA-256 que figura en la página de la versión
+(archivo SHA256SUMS.txt). Si no coincide, no lo uses.
+
+Algunos antivirus desconfían de programas que descargan contenido o no están
+firmados. Si el tuyo bloquea algo, no desactives la protección: revisa que la
+huella coincida y, si quieres, añade una excepción solo para esta carpeta.
+
+
+ACTUALIZACIONES
+---------------
+- yt-dlp (el programa que habla con YouTube) se actualiza solo, como mucho una
+  vez al día, cuando abres tunedrop con conexión a internet.
+- tunedrop en sí no se actualiza solo: para una versión nueva, descarga el zip
+  nuevo y extráelo (tus archivos descargados y ajustes no se pierden).
+
+
+SI LAS DESCARGAS DEJAN DE FUNCIONAR
+-----------------------------------
+YouTube cambia a menudo y a veces rompe yt-dlp. Qué hacer:
+1. Cierra tunedrop y vuelve a abrirlo con internet: así busca una versión
+   nueva de yt-dlp.
+2. Si sigue fallando, descarga la última versión de tunedrop (el zip trae un
+   yt-dlp reciente).
+3. Si aun así no funciona, abre una incidencia con el mensaje de error en
+   https://github.com/wilrd14/Music_Downloader/issues
+
+
+CONTENIDO DE ESTA CARPETA
+-------------------------
+  Iniciar tunedrop.bat   Inicia la aplicación.
+  app\                   tunedrop, su interfaz web y las herramientas
+                         yt-dlp, ffmpeg y ffprobe (carpeta app\bin).
+  runtime\               Node.js, el motor que ejecuta tunedrop.
+  licenses\              Licencias y avisos de todos los componentes
+                         (THIRD_PARTY_NOTICES.md incluye versiones, huellas y
+                         dónde obtener el código fuente).
+  VERSION                Versión de tunedrop.
+
+
+AVISO LEGAL
+-----------
+tunedrop es software libre bajo licencia GPL-3.0, sin garantía de ningún tipo.
+Úsalo solo para descargar contenido sobre el que tengas derecho: tuyo, con
+licencia libre, de dominio público o que el titular permita descargar. Descargar
+contenido protegido por derechos de autor sin permiso puede incumplir los
+términos de YouTube y la ley de tu país. Eres la única persona responsable del
+uso que le des. tunedrop no está afiliado a YouTube ni a Google.
