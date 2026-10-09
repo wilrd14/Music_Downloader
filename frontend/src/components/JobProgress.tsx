@@ -1,17 +1,21 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { JobState } from '../types';
-import { downloadUrl } from '../api/client';
+import { ApiError, downloadUrl, openFolder } from '../api/client';
 import { plural, toPercent } from '../lib/format';
 import Thumb from './Thumb';
 import JobTrackRow from './JobTrackRow';
-import { AlertIcon, DownloadIcon, ResetIcon } from './icons';
+import { AlertIcon, CheckIcon, DownloadIcon, FolderIcon, ResetIcon, Spinner } from './icons';
 
 interface Props {
   job: JobState;
   onNew: () => void;
+  /** Modo local: las canciones se guardan en una carpeta del PC, sin descarga del navegador. */
+  local?: boolean;
+  /** Carpeta de guardado conocida (respaldo si el trabajo no trae `savedTo`). */
+  downloadDir?: string | null;
 }
 
-function statusText(job: JobState): string {
+function statusText(job: JobState, local: boolean): string {
   const total = job.tracks.length;
   const finished = job.tracks.filter((t) => t.status === 'done' || t.status === 'failed').length;
   switch (job.status) {
@@ -22,7 +26,7 @@ function statusText(job: JobState): string {
       return total > 1 ? `Descargando ${current} de ${total}` : 'Descargando';
     }
     case 'done':
-      return job.downloadReady ? 'Listo' : 'Preparando archivo…';
+      return local || job.downloadReady ? 'Listo' : 'Preparando archivo…';
     case 'failed':
       return 'La descarga falló';
     case 'expired':
@@ -30,15 +34,32 @@ function statusText(job: JobState): string {
   }
 }
 
-export default function JobProgress({ job, onNew }: Props) {
+export default function JobProgress({ job, onNew, local = false, downloadDir = null }: Props) {
   const pct = job.status === 'done' ? 100 : toPercent(job.progress);
   const autoTriggered = useRef<string | null>(null);
   const linkRef = useRef<HTMLAnchorElement>(null);
+  const [opening, setOpening] = useState(false);
+  const [openError, setOpenError] = useState<string | null>(null);
 
-  const ready = job.status === 'done' && job.downloadReady;
   const failedTracks = job.tracks.filter((t) => t.status === 'failed');
   const okCount = job.tracks.filter((t) => t.status === 'done').length;
   const isZip = job.kind === 'playlist';
+  // En modo local nunca hay descarga del navegador: solo la tarjeta «Guardado en…».
+  const ready = !local && job.status === 'done' && job.downloadReady;
+  const savedHere = local && job.status === 'done' && okCount > 0;
+  const savedPath = job.savedTo ?? downloadDir;
+
+  const handleOpenFolder = async () => {
+    setOpening(true);
+    setOpenError(null);
+    try {
+      await openFolder(job.id);
+    } catch (e) {
+      setOpenError(e instanceof ApiError || e instanceof Error ? e.message : 'No se pudo abrir la carpeta.');
+    } finally {
+      setOpening(false);
+    }
+  };
 
   // Trigger the download exactly once per job.
   useEffect(() => {
@@ -73,7 +94,7 @@ export default function JobProgress({ job, onNew }: Props) {
           <div>
             <div className="mb-1.5 flex items-baseline justify-between gap-2 text-sm">
               <p className="font-semibold" role="status" aria-live="polite">
-                {statusText(job)}
+                {statusText(job, local)}
               </p>
               <span className="tabular-nums text-slate-600 dark:text-slate-400">{pct}%</span>
             </div>
@@ -109,6 +130,47 @@ export default function JobProgress({ job, onNew }: Props) {
                   : job.error || 'Ocurrió un error inesperado. Inténtalo de nuevo.'}
               </p>
             </div>
+          </div>
+        )}
+
+        {savedHere && (
+          <div className="td-in rounded-2xl border border-emerald-300 bg-emerald-50 p-4 text-emerald-900 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-100">
+            <div className="flex items-start gap-3">
+              <CheckIcon className="mt-0.5 shrink-0" />
+              <div className="min-w-0 flex-1" role="status">
+                <p className="font-semibold">
+                  {okCount} {plural(okCount, 'canción guardada', 'canciones guardadas')}
+                </p>
+                <p className="mt-1 text-sm">
+                  Guardado en{' '}
+                  {savedPath ? (
+                    <span className="select-all break-all font-mono text-[0.8125rem] font-medium">{savedPath}</span>
+                  ) : (
+                    'tu carpeta de descargas'
+                  )}
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={handleOpenFolder}
+                disabled={opening}
+                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-6 font-semibold text-white shadow-lg shadow-violet-600/25 transition hover:from-violet-700 hover:to-fuchsia-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600 disabled:cursor-wait disabled:opacity-70 sm:w-auto"
+              >
+                {opening ? <Spinner /> : <FolderIcon />}
+                Abrir carpeta
+              </button>
+            </div>
+            {openError && (
+              <p
+                role="alert"
+                className="mt-3 flex items-start gap-2 rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-900 dark:border-rose-500/40 dark:bg-rose-950/60 dark:text-rose-100"
+              >
+                <AlertIcon className="mt-0.5 shrink-0" width={18} height={18} />
+                <span className="min-w-0 flex-1 break-words">{openError}</span>
+              </p>
+            )}
           </div>
         )}
 
