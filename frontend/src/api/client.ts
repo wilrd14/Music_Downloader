@@ -1,4 +1,4 @@
-import type { AudioFormat, HealthState, JobState, ResolveResponse } from '../types';
+import type { AppConfig, AppSettings, AudioFormat, HealthState, JobState, ResolveResponse } from '../types';
 
 export class ApiError extends Error {
   status: number;
@@ -53,7 +53,15 @@ export const getHealth = () => request<HealthState>('/api/health');
 export const resolveUrl = (url: string) =>
   request<ResolveResponse>('/api/resolve', { method: 'POST', body: JSON.stringify({ url }) });
 
-export const getConfig = () => request<{ turnstileSiteKey: string | null }>('/api/config');
+export const getConfig = () => request<AppConfig>('/api/config');
+
+/** Solo modo local. */
+export const getSettings = () => request<AppSettings>('/api/settings');
+export const putSettings = (downloadDir: string) =>
+  request<AppSettings>('/api/settings', { method: 'PUT', body: JSON.stringify({ downloadDir }) });
+/** Solo modo local: abre en el explorador la carpeta de guardado (o la de un trabajo). */
+export const openFolder = (jobId?: string) =>
+  request<{ ok: true }>('/api/open-folder', { method: 'POST', body: JSON.stringify(jobId ? { jobId } : {}) });
 
 export const createJob = (url: string, format: AudioFormat, trackIds?: string[], turnstileToken?: string | null) =>
   request<{ id: string }>('/api/jobs', {

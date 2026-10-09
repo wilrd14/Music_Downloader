@@ -21,6 +21,7 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 - **Límites por IP** con `@fastify/rate-limit` usando la IP real de `CF-Connecting-IP` (120 peticiones/min a `/api/*`, 20 a `/api/resolve`, 6 a `POST /api/jobs`, 30 a las descargas); respuesta 429 en español con `Retry-After`.
 - **Topes**: `MAX_QUEUED_JOBS` (30), `MAX_ACTIVE_JOBS_PER_IP` (2) y `MAX_DISK_MB` (4096, 503 al llenarse). Nueva columna `jobs.client_key` (huella HMAC de la IP, nunca la IP) con migración segura.
 - **Cloudflare Turnstile**: `GET /api/config`, verificación del token en `POST /api/jobs` (falla cerrado) y componente `TurnstileWidget` en la interfaz; la CSP permite `challenges.cloudflare.com`.
+- **Interfaz del modo local**: la interfaz lee `mode` de `/api/config`; en modo local no hay Turnstile ni descarga del navegador, y al terminar muestra «Guardado en <ruta>» con «Abrir carpeta» (`POST /api/open-folder`). Incluye insignia «Modo local», diálogo de ajustes (engranaje) para cambiar la carpeta de guardado (`/api/settings`) y la línea «Se guardará en …» en la vista previa. El modo servidor no cambia.
 - El worker borra las filas de trabajos terminados con más de 24 h (minimización de datos).
 
 ### Eliminado
