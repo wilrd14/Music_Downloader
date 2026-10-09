@@ -3,7 +3,15 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { defaultLocalDataDir, defaultMusicDir, findBinary, findStaticDir, isInside, parseMode } from './platform';
+import { defaultLocalDataDir, defaultMusicDir, findBinary, findStaticDir, isInside, parseMode, windowsSystemFile } from './platform';
+
+test('seguridad: windowsSystemFile da rutas absolutas de Windows (no se busca explorer.exe/taskkill.exe en la carpeta actual)', () => {
+  assert.equal(windowsSystemFile(['explorer.exe'], { SystemRoot: 'C:\\Windows' }), 'C:\\Windows\\explorer.exe');
+  assert.equal(windowsSystemFile(['System32', 'taskkill.exe'], { SystemRoot: 'D:\\WIN' }), 'D:\\WIN\\System32\\taskkill.exe');
+  assert.equal(windowsSystemFile(['explorer.exe'], { windir: 'E:\\Win' }), 'E:\\Win\\explorer.exe');
+  assert.equal(windowsSystemFile(['explorer.exe'], {}), 'C:\\Windows\\explorer.exe');
+  assert.ok(path.win32.isAbsolute(windowsSystemFile(['System32', 'taskkill.exe'], {})));
+});
 
 test('parseMode: local por defecto, server explícito, resto es un error', () => {
   assert.equal(parseMode(undefined), 'local');

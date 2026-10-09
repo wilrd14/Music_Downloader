@@ -33,6 +33,10 @@ const MAX_PATH_LENGTH = 1024;
 
 const WIN_SYSTEM_TREES = /^[a-z]:\\(windows|program files|program files \(x86\)|programdata|\$recycle\.bin|system volume information|recovery|boot)(\\|$)/;
 const WIN_ACCOUNT_CONTAINER = /^[a-z]:\\users$/;
+// Menú Inicio de una cuenta (incluye la carpeta Inicio/Startup, cuyo contenido Windows abre al iniciar sesión).
+const WIN_START_MENU = /^[a-z]:\\users\\[^\\]+\\appdata\\roaming\\microsoft\\windows\\start menu(\\|$)/;
+// Nombres de dispositivo de Windows (CON, NUL, COM1, COM¹...), con o sin extensión.
+const WIN_DEVICE_NAME = /^(con|prn|aux|nul|conin\$|conout\$|com[1-9¹²³]|lpt[1-9¹²³])(\..*)?$/i;
 const POSIX_SYSTEM_TREES = [
   '/bin', '/boot', '/dev', '/etc', '/lib', '/lib32', '/lib64', '/libx32', '/proc', '/root', '/run', '/sbin', '/sys', '/usr', '/snap',
   '/var/lib', '/var/log', '/var/run', '/var/spool', '/var/cache', '/var/mail', '/var/db', '/var/root',
@@ -73,12 +77,22 @@ export function checkDownloadDirShape(
   const dir = p.resolve(text);
   if (p.parse(dir).root === dir) return fail('No puedes usar la raíz del disco como carpeta de música.');
 
+  if (win) {
+    // Node crea estas carpetas tal cual (sin la normalización de Win32): `C:\Windows.` sería una carpeta distinta de
+    // `C:\Windows` que Explorer y otros programas confundirían con ella, y `C:\CON` un nombre de dispositivo.
+    for (const part of dir.slice(p.parse(dir).root.length).split('\\')) {
+      if (/[. ]$/.test(part)) return fail('Ningún nombre de carpeta puede terminar en punto ni en espacio.');
+      if (part.includes(':')) return fail('Los nombres de carpeta no pueden contener ":" (flujos alternativos de datos).');
+      if (WIN_DEVICE_NAME.test(part)) return fail(`"${part}" es un nombre reservado de Windows. Elige otro nombre de carpeta.`);
+    }
+  }
+
   const norm = dir.toLowerCase(); // Windows y macOS no distinguen mayúsculas; denegar de más en Linux es inocuo
   if (norm === p.resolve(home).toLowerCase()) {
     return fail('Elige una subcarpeta (por ejemplo Música\\tunedrop), no tu carpeta personal completa.');
   }
   const dangerous = win
-    ? WIN_SYSTEM_TREES.test(norm) || WIN_ACCOUNT_CONTAINER.test(norm)
+    ? WIN_SYSTEM_TREES.test(norm) || WIN_ACCOUNT_CONTAINER.test(norm) || WIN_START_MENU.test(norm)
     : POSIX_SYSTEM_TREES.some((t) => norm === t || norm.startsWith(`${t}/`)) || POSIX_ACCOUNT_CONTAINERS.includes(norm);
   if (dangerous) return fail('Esa carpeta es del sistema. Elige una carpeta propia, por ejemplo dentro de tu carpeta de Música.');
 
@@ -102,10 +116,11 @@ export function validateDownloadDir(raw: unknown, opts: { platform?: NodeJS.Plat
     throw new UserError('No se pudo crear la carpeta. Revisa la ruta y los permisos.', 400);
   }
 
-  // Los enlaces simbólicos no deben llevar a un sitio prohibido.
+  // Los enlaces simbólicos, las uniones (junctions) y los nombres cortos 8.3 (`PROGRA~1`) no deben llevar a un sitio
+  // prohibido: `.native` pide al sistema la ruta real con los nombres largos.
   let real: string;
   try {
-    real = fs.realpathSync(dir);
+    real = fs.realpathSync.native(dir);
   } catch {
     throw new UserError('No se pudo comprobar la carpeta.', 400);
   }

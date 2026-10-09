@@ -21,6 +21,23 @@ export interface GuardInput {
   isApi: boolean;
 }
 
+/**
+ * ¿Es una petición a la API? Se decide por la ruta tal cual llega, por la ruta con los `%xx` ya decodificados y por la
+ * ruta que Fastify enrutó. Mirar solo el texto de la URL era un hueco: `/%61pi/settings` llega a `/api/settings`
+ * (Fastify decodifica antes de enrutar) pero no empieza por `/api/`, así que se saltaba las comprobaciones 2 y 3.
+ */
+export function isApiRequest(rawUrl: string, routedUrl?: string): boolean {
+  const pathOnly = rawUrl.split(/[?#]/, 1)[0] ?? '';
+  let decoded = pathOnly;
+  try {
+    decoded = decodeURIComponent(pathOnly);
+  } catch {
+    // %xx mal formado: se queda con el texto original
+  }
+  const isApiPath = (p: string) => /^\/api(\/|$)/i.test(p);
+  return isApiPath(pathOnly) || isApiPath(decoded) || (routedUrl !== undefined && isApiPath(routedUrl));
+}
+
 export function allowedHosts(port: number): string[] {
   return [`localhost:${port}`, `127.0.0.1:${port}`, `[::1]:${port}`];
 }

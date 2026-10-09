@@ -38,6 +38,21 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 - Las pruebas ya no leen `backend/.env` (se detectan por `NODE_TEST_CONTEXT`), así que no dependen de la configuración real de la máquina (p. ej. las claves de Turnstile).
 - Las pruebas del worker escribían en la base de datos real (`backend/data`) por un `import` estático que cargaba la configuración antes de fijar `DATA_DIR`; ahora usan una carpeta temporal.
 
+### Seguridad
+Auditoría de seguridad (2026-10-09); detalle, evidencias y riesgos abiertos en `docs/security.md` (sección «Auditoría de seguridad»). Nuevo `SECURITY.md` con cómo informar de una vulnerabilidad.
+- **Pérdida de archivos de la persona (S-02, media)**: yt-dlp trataba como «ya descargado» un archivo existente con el mismo nombre base (`Tema.m4a`, `Tema.jpg`…) y lo **borraba** al convertir el nuevo (reproducido con yt-dlp 2026.08.19). El nombre «(1)» ahora se elige también comprobando esos archivos intermedios, y la reserva es por nombre base para que MP3 y M4A simultáneos no se pisen.
+- **Modo local: comprobaciones de `Origin`/`Sec-Fetch-Site` esquivables (S-01, baja)**: `/%61pi/settings` llegaba a `/api/settings` sin pasar por ellas. Ahora la ruta se decodifica y se mira también la ruta enrutada (la comprobación de `Host`, que frena el DNS rebinding, ya cubría todo).
+- **Carpeta de música (S-03, baja)**: se rechazan nombres de dispositivo de Windows (`C:\CON`, `NUL`, `COM1`…), componentes con punto o espacio final (`C:\Windows.` se creaba como carpeta distinta de `C:\Windows`), `:` (flujos alternativos de datos) y la carpeta Inicio del usuario; la ruta real se resuelve con `realpath.native` (también expande nombres cortos 8.3 como `PROGRA~1`).
+- **DoS por conexiones SSE (S-04, media en modo servidor)**: tope total (`MAX_SSE_TOTAL`, 200) y por cliente (`MAX_SSE_PER_IP`, 10, solo servidor), con 429. Medido: 800 conexiones de un cliente hacían que `/api/health` tardara 2,8 s; con el tope, 8 ms.
+- **Límites por IP evadibles con IPv6 (S-05, media en modo servidor)**: los límites y el tope de descargas activas cuentan por /64 en IPv6 y tratan `::ffff:a.b.c.d` como la IPv4.
+- **Memoria y procesos en `/api/resolve` (S-06, baja)**: caché limitada a 200 entradas, consultas iguales simultáneas comparten un solo yt-dlp y tope de consultas simultáneas (`MAX_CONCURRENT_RESOLVES`, 8; 503 con `Retry-After`).
+- **Nombres de archivo (S-07, baja)**: se quitan los caracteres de dirección y los invisibles (U+202E «RLO» disfrazaba la extensión) y se reservan también `COM¹`/`LPT²`.
+- **yt-dlp empaquetado (S-08, baja)**: se lanza con `--ignore-config`, así un `yt-dlp.conf` plantado en la carpeta actual, junto al ejecutable o en el perfil no puede añadir `--exec`. El lanzador `.bat` trabaja desde su propia carpeta (`pushd`).
+- **Programas del sistema por ruta absoluta (S-09, baja)**: `explorer.exe` y `taskkill.exe` se lanzan desde `%SystemRoot%`; Windows busca primero en la carpeta actual los programas lanzados por nombre.
+- **Enlaces y ids (S-10, baja)**: solo puerto estándar y sin usuario/clave en los enlaces de YouTube; los ids de pista deben ser `[\w-]{1,64}`.
+- **Cabeceras (S-11, informativa)**: `Cache-Control: no-store` en toda la API; la CSP del modo local ya no abre `challenges.cloudflare.com` (no hay Turnstile); el flujo SSE ya no repite `Cache-Control`.
+- **CI (S-12, informativa)**: `persist-credentials: false` en los `checkout`, auditoría de `deploy/` y Dependabot para `deploy/`.
+
 ### Decisiones y estado (2026-10-08, para retomar en otra sesión)
 - **Dirección: local-first.** Cada persona ejecuta en su propio PC la parte que descarga; la web pública solo presenta e instala. Motivo: YouTube bloquea las IPs de servidores (probado en un VPS con 10 clientes distintos de `yt-dlp`: todos piden iniciar sesión; saliendo por una IP de casa mediante un túnel SSH inverso sí funciona), y así ninguna IP concentra las descargas ni se aloja contenido de terceros. La versión «servidor» (límites por IP, Turnstile, ZIP) se conserva como modo opcional.
 - **Spotify descartado**: su API ya no permite leer playlists con credenciales de app.
@@ -47,13 +62,19 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 - **Modo local implementado y fusionado en la rama `feat/modo-local`** (backend e interfaz; 151 pruebas). Probado de punta a punta con el bundle `dist/tunedrop.mjs` + `web/`: arranca en un proceso, guarda en la carpeta elegida (playlist en subcarpeta, numeradas), 4 canciones en ~24 s, y responde 403 a `Host`/`Origin` ajenos. Falta empaquetarlo (zip) y publicarlo.
 - **Aviso al reiniciar con el código nuevo:** el modo por defecto pasa a ser `local`. Para conservar el despliegue privado actual hay que poner `TUNEDROP_MODE=server` en `backend/.env` antes de reiniciar el backend.
 
+- **Release v0.1.0 publicada (2026-10-09):** Release normal con `tunedrop-windows-x64.zip` (176,5 MB), su `.sha256` y `SHA256SUMS.txt`; el enlace `releases/latest/download/…` de la web funciona. Verificada con la huella y con la prueba de humo con descarga real sobre el zip descargado.
+- **Firma de código: se usará SignPath Foundation** (decisión tomada; gratis para código abierto). Solo se firmaría nuestro propio `.exe` (el instalador); firmar no elimina de golpe el aviso de SmartScreen (la reputación se acumula por archivo) ni los falsos positivos de antivirus de `yt-dlp.exe`.
+- **Auditoría de seguridad (2026-10-09):** sin hallazgos críticos ni altos; 12 correcciones con pruebas (178 pruebas). Detalle, riesgos aceptados y checklist en `docs/security.md` y `SECURITY.md`.
 ### Pendiente (orden sugerido)
-1. Publicar la primera Release (etiqueta `v0.1.0`, el workflow ya está listo y falta ejecutarlo y probar el zip descargado).
-2. Reescribir el README con el enfoque local-first.
-3. Instalador `.exe` (Inno Setup), paquetes para macOS y Linux, y firma de código.
-4. Programa de escritorio con ventana propia (Electron o Tauri), solo si hay demanda.
-5. Decidir qué hacer con el VPS (descartado para descargar) y con la instancia privada actual; tomar la decisión legal antes de promocionar el proyecto.
-6. Menores: limpiar artista y título de videos subidos por canales («… Official YouTube», «(Music Video)»); probar un `yt-dlp` que no sea el `.exe` de un solo archivo para acortar el arranque (≈5-10 s por canción); imagen para las vistas previas al compartir la web; verificar los avisos de macOS y Linux de la página.
+1. Reescribir el README con el enfoque local-first (aún habla del servidor y del túnel).
+2. **Instalador `.exe` (Inno Setup)** que instale todo lo necesario para funcionar sin instalar nada aparte (hoy el zip ya trae Node, `yt-dlp`, `ffmpeg` y `ffprobe`; el instalador añadiría acceso directo, desinstalador y actualización encima de la versión anterior): instalación por usuario en `%LOCALAPPDATA%Programs	unedrop` sin administrador, el desinstalador conserva la carpeta de Música y los ajustes, y construcción en el workflow de Release (comprobar si Inno Setup viene en `windows-latest`).
+3. **Firma con SignPath Foundation**, en este orden: (1) publicar el instalador sin firmar (SignPath exige una versión ya publicada en la forma que se va a firmar), (2) solicitar el proyecto en https://signpath.org y guardar su token como secreto del repositorio, (3) añadir la política de firma a la web (`site/`), el crédito a SignPath en el README y el paso de firma en `release.yml`, (4) la siguiente Release sale firmada.
+4. Acciones de seguridad que solo puede hacer el dueño en GitHub (checklist en `docs/security.md`): secret scanning y push protection, alertas y actualizaciones de seguridad de Dependabot, avisos privados de vulnerabilidades (el enlace de `SECURITY.md` los necesita), protección de la rama `main` con CI obligatoria y de las etiquetas `v*`, restringir Actions a acciones de GitHub y verificadas, y 2FA con llave de seguridad en GitHub y Cloudflare.
+5. Seguridad abierta de la auditoría: token por sesión en la API local para PC compartidos (A-01), atestación de procedencia del zip con `actions/attest-build-provenance` (A-03) y un entorno `release` con aprobación manual (A-04).
+6. Paquetes para macOS y Linux.
+7. Programa de escritorio con ventana propia (Electron o Tauri), solo si hay demanda.
+8. Decidir qué hacer con el VPS (descartado para descargar) y con la instancia privada actual; tomar la decisión legal antes de promocionar el proyecto.
+9. Menores: limpiar artista y título de videos subidos por canales («… Official YouTube», «(Music Video)»); probar un `yt-dlp` que no sea el `.exe` de un solo archivo para acortar el arranque (≈5-10 s por canción); imagen para las vistas previas al compartir la web; verificar los avisos de macOS y Linux de la página.
 
 ## [0.1.0] - 2026-10-08
 

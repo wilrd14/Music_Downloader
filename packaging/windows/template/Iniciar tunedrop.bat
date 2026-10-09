@@ -4,6 +4,10 @@ chcp 65001 >nul
 title tunedrop - descargador de musica (cierra esta ventana para salir)
 setlocal
 
+rem Trabaja siempre desde la carpeta de tunedrop (aunque se lance desde otra, p. ej. Descargas): Windows busca primero
+rem en la carpeta actual los programas que se lanzan por nombre y yt-dlp lee ahi un yt-dlp.conf si existe.
+pushd "%~dp0" >nul 2>&1
+
 if not exist "%~dp0runtime\node.exe" goto sin_archivos
 if not exist "%~dp0app\tunedrop.mjs" goto sin_archivos
 
@@ -41,4 +45,5 @@ pause
 exit /b 1
 
 :fin
+popd >nul 2>&1
 endlocal
