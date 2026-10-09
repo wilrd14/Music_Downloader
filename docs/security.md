@@ -42,3 +42,30 @@ Leyenda: ✅ cumplido en el código (con tests) · ⚠️ cumplido a medias · �
 - [ ] `npm audit` limpio y yt-dlp actualizado.
 - [ ] Revisión del OWASP Top 10 y escaneo de cabeceras en el entorno real.
 - [ ] Términos de uso y decisión legal tomada.
+
+## Modo local: amenazas de una app en `127.0.0.1`
+
+En modo local la API escucha solo en `127.0.0.1`, pero **cualquier página web que la persona visite** puede intentar llegar a ella desde su navegador. Las defensas (`backend/src/api/localGuard.ts`, probadas en `localGuard.test.ts` y `app.local.test.ts`):
+
+| Amenaza | Defensa |
+|---|---|
+| **DNS rebinding**: un dominio atacante resuelve a `127.0.0.1` y la web lo usa como si fuera su propio origen. | Se rechaza (403) toda petición, también la de la interfaz, cuyo `Host` no sea `localhost`, `127.0.0.1` o `[::1]` **con el puerto real** de la app. |
+| **Peticiones desde otras webs** (`fetch`, formularios, `EventSource`). | En `/api/*`, si hay `Origin` debe ser exactamente `http://<Host>` (el origen de la propia app); si hay `Sec-Fetch-Site` debe ser `same-origin` o `none`. Los `POST`/`PUT` solo aceptan `application/json`. Sin CORS: no se emite ninguna cabecera `Access-Control-*`, así que el navegador no deja leer respuestas de otro origen y el preflight recibe 403. |
+| **Escribir fuera de la carpeta de música**. | Nombres saneados con `sanitizeFileName`; la subcarpeta de playlist se comprueba con `isInside`; `POST /api/open-folder` resuelve enlaces simbólicos y solo abre rutas iguales o dentro de la carpeta de música. Los archivos nunca se borran. |
+| **Lanzar procesos con datos de usuario**. | `yt-dlp`, `ffmpeg`, `explorer.exe`/`open`/`xdg-open` se ejecutan con `spawn` **sin shell**; la ruta abierta sale del servidor, nunca del texto del cliente. |
+| **Actualizar un binario ajeno**. | `yt-dlp -U` solo se ejecuta si el binario está en la carpeta `bin` empaquetada. |
+
+Las peticiones sin `Origin` ni `Sec-Fetch-Site` (curl, scripts locales) se permiten: no provienen de un navegador ajeno y pueden fijar cualquier cabecera de todos modos. Un programa malicioso que ya corra en el PC de la persona queda fuera del modelo de amenazas.
+
+### Regla de `PUT /api/settings` (carpeta de música)
+
+Tras normalizar la ruta (`path.resolve`, que colapsa `..`), se acepta solo si:
+
+1. Es texto no vacío, de hasta 1024 caracteres, sin NUL ni caracteres de control.
+2. Es absoluta de verdad: en Windows empieza por unidad y separador (`C:\...`; se rechazan relativas, sin unidad como `\x` o `C:x`, UNC `\\servidor\recurso` y prefijos `\\?\` y `\\.\`); en macOS/Linux empieza por `/` (no se expande `~`).
+3. No es la raíz del sistema de archivos (`/`, `C:\`).
+4. No es la carpeta personal completa ni un contenedor de cuentas o montajes (`C:\Users`, `/home`, `/Users`, `/mnt`, `/media`, `/Volumes`, `/tmp`, `/opt`, `/srv`, `/var`), ni cuelga de una zona del sistema: Windows (`Windows`, `Program Files`, `Program Files (x86)`, `ProgramData`, `$Recycle.Bin`, `System Volume Information`, `Recovery`, `Boot`); Linux (`/bin /boot /dev /etc /lib* /proc /root /run /sbin /sys /usr /snap /var/{lib,log,run,spool,cache,mail,db}`); macOS (`/System /Library /Applications /cores /private/etc`).
+5. Se puede crear (`mkdir -p`) y escribir (se crea y borra un archivo de prueba).
+6. Su ruta real (tras resolver enlaces simbólicos) también cumple 3 y 4.
+
+Implementación: `checkDownloadDirShape` (pura, puntos 1 a 4) y `validateDownloadDir` en `backend/src/core/locations.ts`. El resultado se guarda en `<DATA_DIR>/settings.json`.

@@ -187,3 +187,38 @@ Pasos:
 - **Nombres de archivo** saneados con `sanitizeFileName` antes de escribir a disco y de construir el ZIP.
 - **Red**: la API solo escucha en `127.0.0.1`; la única entrada pública es el túnel. CORS está desactivado salvo que se defina `CORS_ORIGIN`.
 - **Pendiente (Fase 4)**: rate limiting, Cloudflare Turnstile, límites por IP y Cloudflare Access durante las pruebas privadas.
+
+## Modos de funcionamiento (`TUNEDROP_MODE`)
+
+El mismo código funciona en dos modos. El valor por defecto es **`local`**; cualquier valor que no sea `local` o `server` impide arrancar.
+
+| | `local` (por defecto) | `server` |
+|---|---|---|
+| Quién lo ejecuta | Cada persona, en su PC | El propietario, expuesto por un túnel |
+| Procesos | API + worker en **uno solo** (`npm run start:local` / `node dist/tunedrop.mjs`) | API y worker separados (`start:api`, `start:worker`) |
+| Escucha | `127.0.0.1`, puerto libre desde `API_PORT` (hasta 10 seguidos) | `127.0.0.1:API_PORT`, detrás del túnel |
+| Archivos | Directamente en la carpeta de música; **nunca se borran** | `data/jobs/<id>/tracks`, ZIP o MP3 por navegador, borrado por TTL |
+| Límites por IP, topes, cuota de disco, Turnstile, CORS | No | Sí |
+| Protecciones | Host/Origin/Sec-Fetch-Site (ver `docs/security.md`) | CORS, límites, Turnstile |
+| Datos (`DATA_DIR`) | Carpeta de aplicación del SO (`%LOCALAPPDATA%\tunedrop`, `~/Library/Application Support/tunedrop`, `$XDG_DATA_HOME/tunedrop` o `~/.local/share/tunedrop`) | `backend/data` |
+
+### Flujo en modo local
+
+1. `src/local/index.ts` fija el modo, construye la API, escucha en el primer puerto libre, arranca el worker en el mismo proceso (`startWorker()`), actualiza yt-dlp en segundo plano si procede y abre el navegador (salvo `TUNEDROP_NO_BROWSER=1`).
+2. La interfaz (`web/` junto al script, o `frontend/dist` en el repositorio; `STATIC_DIR` manda) se sirve desde el mismo origen que la API.
+3. `POST /api/jobs` encola sin Turnstile ni topes. El worker lee la carpeta de música al empezar cada trabajo: ajuste guardado en `<DATA_DIR>/settings.json`, si no `DOWNLOAD_DIR`, si no `<home>/Music/tunedrop`.
+4. Una pista suelta se guarda directamente en esa carpeta; una playlist, en la subcarpeta `sanitizeFileName(títuloPlaylist)`. Si el nombre ya existe se añade ` (1)`, ` (2)`... antes de la extensión: nunca se sobrescribe nada. La carpeta final queda en `JobState.savedTo`.
+5. Solo se purgan las filas antiguas de la base de datos (24 h); los archivos son de la persona.
+
+### API adicional en modo local
+
+- `GET /api/config` → `{ mode, downloadDir, turnstileSiteKey }` (`downloadDir` solo en local; `turnstileSiteKey` solo en servidor).
+- `GET /api/settings` → `{ downloadDir }`; `PUT /api/settings` con `{ downloadDir }` valida la carpeta (ver `docs/security.md`), la crea y la guarda; `400 { error }` en español si no es válida. En modo servidor ambas devuelven 404.
+- `POST /api/open-folder` con `{ jobId? }` abre la carpeta de música, o la del trabajo, en el explorador (`explorer.exe`, `open` o `xdg-open`, sin shell) y solo si está dentro de la carpeta de música. `404`/`400 { error }` en otro caso.
+- `JobState.savedTo`: carpeta donde quedaron los archivos (solo local; `null` en servidor). `GET /api/jobs/:id/download` responde 404 en local.
+
+### Binarios y empaquetado
+
+- `yt-dlp` y `ffmpeg` se buscan primero en la carpeta `bin` (`TUNEDROP_BIN_DIR`, por defecto `<app>/bin`), luego en `YT_DLP_PATH` / `FFMPEG_PATH` y por último en el PATH.
+- En modo local, al arrancar y como máximo cada 24 h, se ejecuta `yt-dlp -U` **solo** si el binario está dentro de la carpeta `bin` empaquetada (nunca una instalación del sistema); los fallos se registran y no impiden arrancar. `YT_DLP_AUTO_UPDATE=0` lo desactiva.
+- `npm run build` genera `backend/dist/tunedrop.mjs`, un único archivo ESM (esbuild, `node:sqlite` como módulo integrado). `<carpeta del script>/web` y `<carpeta del script>/bin` son donde el empaquetado coloca la interfaz y los binarios.
