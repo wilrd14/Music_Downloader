@@ -254,6 +254,6 @@ Distribuido bajo la licencia **GNU GPL v3.0**. Consulta [`LICENSE`](LICENSE).
 
 <div align="center">
 
-<sub>Hecho con 💜 por <a href="https://github.com/wilrd14">@wilrd14</a></sub>
+<sub>Hecho con 💜 por <a href="https://github.com/wilrd14">@wilrd14</a> · <a href="https://wilrd14.dev">Williams Villavizar, desarrollador web</a></sub>
 
 </div>
